@@ -1,0 +1,5 @@
+**/.vscode
+**/.pio
+**/__pycache__
+**/*.log
+**/*.pytest_cache
