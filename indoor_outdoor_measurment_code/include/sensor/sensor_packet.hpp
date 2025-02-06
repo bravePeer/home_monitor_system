@@ -102,5 +102,34 @@ namespace sensorPacket
             };
         } Info;
     };
+
+    int generateCrc(uint8_t* payload, uint8_t len)
+    {
+        if(len < 3)
+            return -1;
+
+        uint8_t sum = payload[0];
+        for (uint8_t i = 2; i < len; i++)
+            sum += payload[i];
+        
+        payload[1] = sum;
+        return 0;
+    }
+
+    // Calculating CRC is for now simple sum
+    int checkCrc(const uint8_t* payload, uint8_t len)
+    {
+        if(len < 3)
+            return -1;
+        
+        uint8_t sum = payload[0];
+        for (uint8_t i = 2; i < len; i++)
+            sum += payload[i];
+        
+        if(sum != payload[1])
+            return -1;
+
+        return 0;
+    }
 }
 

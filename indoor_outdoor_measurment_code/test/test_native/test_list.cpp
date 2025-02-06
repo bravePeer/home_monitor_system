@@ -17,13 +17,12 @@ TEST(ListTest, AddToList)
     int val = 21;
     ASSERT_EQ(list.add(val), -1);
 
-
+    int* ptr = nullptr;
     int tmpRes = 19;
     for (int i = 0; i < 20; i++)
     {
-        val = -1;
-        ASSERT_NE(list.valueAt(i, val), -1);
-        ASSERT_EQ(val, tmpRes--);
+        ASSERT_NE(list.valueAt(i, ptr), -1);
+        ASSERT_EQ(*ptr, tmpRes--);
     }
 }
 
@@ -31,10 +30,11 @@ TEST(ListTest, GetFromEmptyList)
 {
     List<int, 20> list;
 
+    int* ptr = nullptr;
     int val = -1;
-    ASSERT_EQ(list.valueAt(0, val), -1);
-    ASSERT_EQ(list.valueAt(15, val), -1);
-    ASSERT_EQ(list.valueAt(100, val), -1);
+    ASSERT_EQ(list.valueAt(0, ptr), -1);
+    ASSERT_EQ(list.valueAt(15, ptr), -1);
+    ASSERT_EQ(list.valueAt(100, ptr), -1);
 }
 
 TEST(ListTest, RemoveFromListIfEmpty)
@@ -53,12 +53,12 @@ TEST(ListTest, RemoveFirstFromList)
     for (int i = 0; i < 20; i++)
         ASSERT_EQ(list.add(i), 0);
 
-    int val = -1;
-    ASSERT_EQ(list.valueAt(0, val), 0);
-    ASSERT_EQ(val, 19);
+    int* ptr = nullptr;
+    ASSERT_EQ(list.valueAt(0, ptr), 0);
+    ASSERT_EQ(*ptr, 19);
     ASSERT_EQ(list.remove(0), 0);
-    ASSERT_EQ(list.valueAt(0, val), 0);
-    ASSERT_EQ(val, 18);
+    ASSERT_EQ(list.valueAt(0, ptr), 0);
+    ASSERT_EQ(*ptr, 18);
 }
 
 TEST(ListTest, RemoveLastFromList)
@@ -68,11 +68,12 @@ TEST(ListTest, RemoveLastFromList)
     for (int i = 0; i < 20; i++)
         list.add(i);
 
+    int* ptr = nullptr;
     int val = -1;
-    ASSERT_EQ(list.valueAt(19, val), 0);
-    ASSERT_EQ(val, 0);
+    ASSERT_EQ(list.valueAt(19, ptr), 0);
+    ASSERT_EQ(*ptr, 0);
     ASSERT_EQ(list.remove(19), 0);
-    int ret = list.valueAt(19, val);
+    int ret = list.valueAt(19, ptr);
     ASSERT_EQ(ret, -1);
 }
 
@@ -88,19 +89,45 @@ TEST(ListTest, RemoveFromList)
     list.remove(1);
     list.remove(1);
 
+    int* ptr = nullptr;
     int val = -1;
     int tmp = 19;
-    ASSERT_EQ(list.valueAt(0, val), 0);
-    ASSERT_EQ(val, tmp--);
+    ASSERT_EQ(list.valueAt(0, ptr), 0);
+    ASSERT_EQ(*ptr, tmp--);
     tmp -= 3;
 
     for (int i = 1; i < 20 - 3; i++)
     {
         val = -1;
-        ASSERT_EQ(list.valueAt(i, val), 0);
-        ASSERT_EQ(val, tmp--);
+        ASSERT_EQ(list.valueAt(i, ptr), 0);
+        ASSERT_EQ(*ptr, tmp--);
     }
-    ASSERT_EQ(list.valueAt(17, val), -1);
-    ASSERT_EQ(list.valueAt(18, val), -1);
-    ASSERT_EQ(list.valueAt(19, val), -1);
+    ASSERT_EQ(list.valueAt(17, ptr), -1);
+    ASSERT_EQ(list.valueAt(18, ptr), -1);
+    ASSERT_EQ(list.valueAt(19, ptr), -1);
+}
+
+TEST(ListTest, FindValueByExpression)
+{
+    List<int, 20> list;
+
+    for (int i = 0; i < 20; i++)
+        list.add(i);
+
+    int* ptr;
+    int ret = list.valueByExpression([](int& arg, void* s)->int {
+        if(arg == 10)
+            return 0;
+        return -1;
+    }, ptr, nullptr);
+
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(*ptr, 10);
+
+    ret = list.valueByExpression([](int& arg, void* s)->int {
+        if(arg == 100)
+            return 0;
+        return -1;
+    }, ptr, nullptr);
+    ASSERT_EQ(ret, -1);
 }

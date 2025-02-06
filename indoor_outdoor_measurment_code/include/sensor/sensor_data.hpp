@@ -11,7 +11,8 @@ namespace sensor
     enum class SensorType: uint8_t
     {
         Test = 0,
-        SimpleWheatherStation = 1
+        SimpleWheatherStation = 1,
+        Unknown = 0xff
     };
 
     struct SensorData
@@ -23,18 +24,18 @@ namespace sensor
 
     struct SensorInfo
     {
-        SensorType sensorType;
-        uint32_t identifier;
-        uint32_t softwareVersion;
-        uint32_t hardwareVersion;
-        uint8_t address[5];
-        uint64_t initializationTime;
-        uint64_t lastRecvDataTime;
+        SensorType sensorType = SensorType::Unknown;
+        uint32_t identifier = -1;
+        uint32_t softwareVersion = -1;
+        uint32_t hardwareVersion = -1;
+        uint8_t address[5]{0xff};
+        uint64_t initializationTime = -1;
+        uint64_t lastRecvDataTime = -1;
     };
 
     struct Sensor
     {
-        SensorInfo sensorInfo;
+        SensorInfo sensorInfo{};
 
         RingBuffer<SensorData, 10> sensorData;
     };

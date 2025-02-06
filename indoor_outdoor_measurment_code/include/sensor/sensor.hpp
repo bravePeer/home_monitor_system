@@ -4,48 +4,49 @@
 #include "sensor/sensor_packet.hpp"
 #include "sensor/sensor_data.hpp"
 #include "utilities/ring_buffer.hpp"
-#include "pico/time.h"
+#include "utilities/list.hpp"
+#include "utilities.hpp"
 
 namespace sensor
 {
     constexpr int32_t maxKnownSensors = 10;
-    Sensor knownSensors[maxKnownSensors];
-
-
-    // Calculating CRC is for now simple sum
-    int checkCrc(const uint8_t* payload, uint8_t len)
-    {
-        uint8_t sum = 0;
-        for (uint8_t i = 0; i < len; i++)
-            sum += *(payload++);
-        
-        if(sum != *payload)
-            return -1;
-
-        return 0;
-    }
+    List<Sensor, maxKnownSensors> knownSensors;
 
     int processSensorPayload(uint8_t* payload, uint8_t len)
     {
-        // TODO Add checksum
-        // if(checkCrc(payload, len) != 0)
-            // return -1;
+        if(sensorPacket::checkCrc(payload, len) != 0)
+            return -1;
 
-        uint64_t recvTime = get_absolute_time();
+        uint64_t recvTime = getTime();
 
         // Copying is better because payload has not const len
         sensorPacket::SensorPacket recv;
         for (size_t i = 0; i < len; i++)
-            recv.raw[i] = payload[i];        
+            recv.raw[i] = payload[i];
 
-        recv.General.identifierValue;
-        recv.Data.identifierValue;
-        recv.Info.identifierValue;
+        recv.General.identifierValue; // Temporary, used to debug
 
-        if (recv.General.identifierValue >= maxKnownSensors)
+        Sensor tmpSensor;
+        Sensor* ptrSensor = &tmpSensor;
+
+        // Looking for known identifier
+        int isKnownSensor = knownSensors.valueByExpression([](Sensor& refSensor, void* args)->int {
+            sensorPacket::SensorPacket* tmp = reinterpret_cast<sensorPacket::SensorPacket*>(args);
+            if(refSensor.sensorInfo.identifier == tmp->General.identifierValue)
+                return 0;
             return -1;
+        }, ptrSensor, &recv);
 
-        Sensor& tmpSensor = knownSensors[recv.General.identifierValue];
+        if(isKnownSensor == -1)
+        {
+            tmpSensor.sensorInfo.identifier = recv.General.identifierValue;
+            if(knownSensors.add(tmpSensor) == -1)
+            {
+                // TODO if list is full
+            }
+
+            knownSensors.valueAt(0, ptrSensor);
+        }
 
         switch (recv.General.header.type)
         {
@@ -53,10 +54,10 @@ namespace sensor
             break;
         
         case sensorPacket::PacketType::SensorInfo:
-            tmpSensor.sensorInfo.hardwareVersion = recv.Info.hardwareVersionValue;
-            tmpSensor.sensorInfo.softwareVersion = recv.Info.softwareVersionValue;
-            tmpSensor.sensorInfo.sensorType = static_cast<SensorType>(recv.Info.sensorType);
-            tmpSensor.sensorInfo.initializationTime = recvTime;
+            ptrSensor->sensorInfo.hardwareVersion = recv.Info.hardwareVersionValue;
+            ptrSensor->sensorInfo.softwareVersion = recv.Info.softwareVersionValue;
+            ptrSensor->sensorInfo.sensorType = static_cast<SensorType>(recv.Info.sensorType);
+            ptrSensor->sensorInfo.initializationTime = recvTime;
             break;
 
         case sensorPacket::PacketType::SensorData:
@@ -64,11 +65,11 @@ namespace sensor
                 .packet = recv,
                 .recvTime = recvTime
             };
-            tmpSensor.sensorData.pushData(data);
+            ptrSensor->sensorData.pushData(data);
             break;
         } 
 
-        tmpSensor.sensorInfo.lastRecvDataTime = recvTime;
+        ptrSensor->sensorInfo.lastRecvDataTime = recvTime;
 
         return 0;
     }

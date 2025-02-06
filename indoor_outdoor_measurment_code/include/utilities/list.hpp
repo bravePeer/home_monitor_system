@@ -92,7 +92,7 @@ struct List
         return 0;
     }
 
-    int valueAt(uint32_t index, T& data)
+    int valueAt(uint32_t index, T*& ptr)
     {
         // assert(index >= N);
         // if(index >= N)
@@ -111,8 +111,32 @@ struct List
                 return -1;            
         }
         
-        data = nodes[tmpIndex].data;
+        ptr = &nodes[tmpIndex].data;
 
         return 0;
+    }
+
+    int valueByExpression(int (*expression)(T&, void*), T*& ptr, void* argsToExpression)
+    {
+        if(head == -1)
+            return -1;
+
+        int32_t tmpIndex = head;
+        if(expression(nodes[tmpIndex].data, argsToExpression) == 0)
+        {
+            ptr = &nodes[tmpIndex].data;
+            return 0;
+        }
+        while(tmpIndex != -1)
+        {
+            tmpIndex = nodes[tmpIndex].nextNode;
+            if(expression(nodes[tmpIndex].data, argsToExpression) == 0)
+            {
+                ptr = &nodes[tmpIndex].data;
+                return 0;
+            }
+        }
+
+        return -1;
     }
 };
