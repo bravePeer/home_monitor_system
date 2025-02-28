@@ -7,3 +7,4 @@
 *.dtmp
 *.bkp
 *.code-workspace
+**/*-backups
