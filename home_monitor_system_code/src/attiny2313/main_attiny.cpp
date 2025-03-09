@@ -1,289 +1,327 @@
 #ifdef ATTINY2313A
 extern "C"
 {
-  #include "avr/io.h"
-  #include "util/delay.h"
-  #include "avr/interrupt.h"
-  #include "avr/sleep.h"
+    #include "avr/io.h"
+    #include "avr/interrupt.h"
+    #include "avr/sleep.h"
+    #include "util/delay.h"
 }
-#include "spi.h"
 
-#define NRF24_CSN_PORT PORTD
-#define NRF24_CSN_PIN (uint8_t)PD4
-#define NRF24_CE_PORT PORTD
-#define NRF24_CE_PIN (uint8_t)PD5
-#define NRF24_IRQ_PORT PORTD
-#define NRF24_IRQ_PIN (uint8_t)PD3
-#define DELAY_MS(val) _delay_ms(val)
-#define DELAY_US(val) _delay_us(val)
-#include "nRF24.h"
-#define BME280_CSN_PORT PORTD
-#define BME280_CSN_PIN (uint8_t)PD6
-#include "bme280.h"
+#include "nrf24.hpp"
+#include "bme280.hpp"
+#include "spi.hpp"
 #include "sensor/sensor_packet.hpp"
-// Attiny2313 -> gdy uśpione 18 uA
-// REad fueses
+
+// Attiny2313 -> sleep 18 uA
+// Read fueses
 // avrdude.exe  -p ATtiny2313A -c usbasp -U hfuse:r:-:h -U lfuse:r:-:h
 
 // Write fuses
 // avrdude -c arduino -p m328p -P COM3 -b 19200 -U lfuse:w:0xe2:m
 
-// Attiny                     Rp
-//  Button  
-//  pressed ------Send----->
-//         <-----Send------ response
-// if no response retransmit
+portType BME280_CSN_PORT = &PORTD;
+pinType BME280_CSN_PIN = PD6;
 
+portType NRF24_CSN_PORT = &PORTD;
+pinType NRF24_CSN_PIN = PD5;
+portType NRF24_CE_PORT = &PORTD;
+pinType NRF24_CE_PIN = PD4;
+portType NRF24_IRQ_PORT = &PORTD;
+pinType NRF24_IRQ_PIN = PD3;
 
-#ifdef ATTINY2313A
+portType batteryVoltageEnablePort = &PORTB;
+pinType batteryVoltageEnablePin = PB1;
+portType batteryVoltagePort = &PORTB;
+pinType batteryVoltagePin = PB2;
+
+portType ledDir = &DDRB;
+portType ledPort = &PORTB;
+pinType ledPin0 = PB4;
+pinType ledPin1 = PB3;
+
 constexpr uint8_t buttonRightPin = PB0;
-constexpr uint8_t buttonLeftPin = PB1;
-constexpr uint8_t ledPIN0 = PB2;
-constexpr uint8_t ledPIN1 = PB3;
-#define LED_DDR DDRB
-#define LED_PORT PORTB
+// constexpr uint8_t buttonLeftPin = PB1;
 
-uint8_t dataToProcess[32];
-uint8_t dataCoutToProcess;
-uint8_t shouldSend = 0;
 
-volatile uint8_t shouldBlink = 0;
-
-enum  State
+void eDELAY_MS(uint32_t val)
 {
-  Sleep,
-  SleepPwrDown,
-  SleepStandby,
-  StartSending,
-  Sending,
-  Receiving,
-  Idle
+    _delay_ms(static_cast<double>(val));
+}
+
+void eDELAY_US(uint32_t val)
+{
+    _delay_us(static_cast<double>(val));
+}
+
+uint8_t transmitSpiNrf24(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint8_t cmd, const uint8_t len)
+{
+    *NRF24_CSN_PORT &= (~(1<<NRF24_CSN_PIN));
+    uint8_t ret = transmitLowLevelSPI(sendBuf, receiveBuf, cmd, len);
+    *NRF24_CSN_PORT |= (1<<NRF24_CSN_PIN);
+    return ret;
+    // return transmitSPI(sendBuf, receiveBuf, cmd, len, NRF24_CSN_PORT, NRF24_CSN_PIN);
+}
+
+uint8_t transmitSpiBme280(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint8_t cmd, const uint8_t len)
+{
+    *BME280_CSN_PORT &= (~(1<<BME280_CSN_PIN));
+    uint8_t ret = transmitLowLevelSPI(sendBuf, receiveBuf, cmd, len);
+    *BME280_CSN_PORT |= (1<<BME280_CSN_PIN);
+    return ret;
+    // return transmitSPI(sendBuf, receiveBuf, cmd, len, NRF24_CSN_PORT, NRF24_CSN_PIN);
+}
+
+void readBatteryVoltage(uint8_t* data)
+{
+    *batteryVoltageEnablePort |= (1<<batteryVoltageEnablePin); // Enable voltage measurement
+    eDELAY_MS(10); // Wait for voltage to stabilize
+    *batteryVoltagePort &= ~(1<<batteryVoltagePin);
+    
+    data[0] = transmitLowLevelSPI(&data[1], &data[1], 0, 1);
+    *batteryVoltagePort |= (1<<batteryVoltagePin);
+    eDELAY_MS(10); // Wait before good reading from ADC
+    *batteryVoltagePort &= ~(1<<batteryVoltagePin);
+    data[0] = transmitLowLevelSPI(&data[1], &data[1], 0, 1);
+
+    *batteryVoltagePort |= (1<<batteryVoltagePin);
+    *batteryVoltageEnablePort &= ~(1<<batteryVoltageEnablePin); // Disable voltage measurement
+}
+
+constexpr uint32_t getSensorIdentifier()
+{
+    return 0;
+}
+
+constexpr uint32_t getHardwareVersion()
+{
+    return 0;
+}
+
+constexpr uint32_t getSoftwareVersion()
+{
+    return 0;
+}
+
+enum class State : uint8_t
+{
+    ToIdle,
+    ToIdleMaxRetr,
+    Idle,
+    PwrUp,
+    PwrDown,
+    ProcessReceivedData,
+    DoMeasurements,
+    SendPacket,
+    ProcessIrq
 };
 
-volatile State state = State::Sleep;
+volatile State state;
 
 void turnOffLeds()
 {
-  LED_PORT &= ~((1<<ledPIN0) | (1<<ledPIN1));
+    *ledPort &= ~((1<<ledPin0) | (1<<ledPin1));
 }
 
 void turnOnRedLed()
 {
-  turnOffLeds();
-  LED_PORT |= (1<< ledPIN0);
+    turnOffLeds();
+    *ledPort |= (1<<ledPin0);
 }
 
 void turnOnGreenLed()
 {
-  turnOffLeds();
-  LED_PORT |= (1<< ledPIN1);
+    turnOffLeds();
+    *ledPort |= (1<<ledPin1);
 }
 
-void setDone()
+// void setDone()
+// {
+//     PORTD |= (1<<PD6);
+//     _delay_ms(1);
+//     PORTD &= ~(1<<PD6);
+//     _delay_ms(1);
+// }
+
+void processIrq()
 {
-  PORTD |= (1<<PD6);
-  _delay_ms(1);
-  PORTD &= ~(1<<PD6);
-  _delay_ms(1);
+    uint8_t status = nrf24::getStatusReg();
+    if(status & nrf24::SetRegister(nrf24::Reg::Status::rx_dr))
+    {
+        state = State::ProcessReceivedData;
+    }
+
+    if(status & nrf24::SetRegister(nrf24::Reg::Status::max_rt))
+    {
+        turnOnRedLed();
+        // eDELAY_MS(100);
+        state = State::ToIdleMaxRetr;
+    }
+
+    if(status & nrf24::SetRegister(nrf24::Reg::Status::tx_ds))
+    {
+        turnOnGreenLed();
+        // transmitSPI(nullptr, nullptr, nrf24::WriteCmd(nrf24::Commands::FlushTx), 0, NRF24_CSN_PORT, NRF24_CSN_PIN);
+        // eDELAY_MS(100);
+        state = State::ToIdle;
+    }
 }
 
-volatile uint8_t prescaler = 0;
-
-ISR(PCINT0_vect)
-{
-  return;
-  _delay_ms(1);
-  if(~PINB & (1<<buttonLeftPin))
-  {
-    state = State::SleepPwrDown;
-    return;
-
-    if(prescaler)
-    {
-      prescaler = 0;
-      cli();
-      CLKPR = (1<<CLKPCE);
-      CLKPR = 0;
-      sei();
-      turnOnGreenLed();
-    }
-    else
-    {
-      prescaler = 1;
-      cli();
-      CLKPR = (1<<CLKPCE);
-      CLKPR = (1<<CLKPS2) | (1<<CLKPS1) | (1<<CLKPS0);
-      sei();
-      turnOnRedLed();
-    }
-    // if(state != State::Sleep)
-    //   return;
-    // turnOnRedLed();
-    // _delay_ms(1000);
-
-    // state = State::Sleep;
-  }
-  else if(~PINB & (1<<buttonRightPin))
-  {
-    state = State::SleepStandby;
-    return;
-    // if(state != State::Sleep)
-    //   return;
-    // TCCR1B = 0;
-    state = State::StartSending;
-
-    // TODO disable interrupts on pcint
-  }
-}
-
+// TODO Decide to use interrupt 
+// With IRQ
+// RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+// Flash: [========= ]  91.1% (used 1866 bytes from 2048 bytes)
+//
+// diff: 68 bytes
+//
+// Without IRQ
+// RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+// Flash: [========= ]  87.8% (used 1798 bytes from 2048 bytes)
+//
+// diff: 30 bytes 
+//
+// With IRQ which only change state
+// RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+// Flash: [========= ]  89.3% (used 1828 bytes from 2048 bytes)
 ISR(INT1_vect)
 {
-  state = State::Idle;
+    state = State::ProcessIrq; // Timming errors?
+    // uint8_t status = nrf24::getStatusReg();
+    // if(status & nrf24::SetRegister(nrf24::Reg::Status::rx_dr))
+    // {
+    //     state = State::ProcessReceivedData;
+    // }
 
-  NRF24_CE_PORT &= ~(1<<NRF24_CE_PIN);
-  // _delay_us(1);
-  uint8_t status = transmitSPI(nullptr, nullptr, WriteCmd(Commands::Nop), 0, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-  
-  
-  switch (status & SetRegister(Reg::Status::max_rt, Reg::Status::tx_ds, Reg::Status::rx_dr))
-  {
-    case SetRegister(Reg::Status::rx_dr): // Data ready, received data
-      transmitSPI(&dataCoutToProcess, &dataCoutToProcess, WriteCmd(Commands::ReadRxPayloadWidth), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-      // dataCoutToProcess = dataToProcess[0];
-      
-      transmitSPI(dataToProcess, dataToProcess, WriteCmd(Commands::ReadRxPayload), dataCoutToProcess, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-      shouldSend = 1;
-      turnOnGreenLed();
+    // if(status & nrf24::SetRegister(nrf24::Reg::Status::max_rt))
+    // {
+    //     turnOnRedLed();
+    //     // eDELAY_MS(100);
+    //     state = State::ToIdleMaxRetr;
+    // }
 
-      break;
-    case SetRegister(Reg::Status::max_rt):
-      transmitSPI(nullptr, nullptr, WriteCmd(Commands::FlushTx), 0, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-      turnOnRedLed();
-      break;
-    case SetRegister(Reg::Status::tx_ds):
-      turnOnGreenLed();
-    //   nrf24::setToPRX();
-      break;
-  }
-
-  uint8_t resetReg = 0x70;
-  transmitSPI(&resetReg, &resetReg, WriteRegister(RegMap::Status), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-  NRF24_CE_PORT |= (1<<NRF24_CE_PIN);
+    // if(status & nrf24::SetRegister(nrf24::Reg::Status::tx_ds))
+    // {
+    //     turnOnGreenLed();
+    //     // transmitSPI(nullptr, nullptr, nrf24::WriteCmd(nrf24::Commands::FlushTx), 0, NRF24_CSN_PORT, NRF24_CSN_PIN);
+    //     // eDELAY_MS(100);
+    //     state = State::ToIdle;
+    // }
 }
 
-volatile uint8_t timerCounter = 0;
-ISR(TIMER1_OVF_vect)
+
+void configureMeasurementSensor()
 {
-  cli();
-  if((timerCounter & 0x01) == 0)
-    turnOffLeds();
-  else
-    turnOnGreenLed();
-  timerCounter++;
-  sei();
+    const bme280::ControlMeasurements ctrl {
+        .ctrlTemperature = bme280::ControlOversamplingTemperature::OversamplingX2,
+        .ctrlPressure = bme280::ControlOversamplingPressure::OversamplingX16,
+        .mode = bme280::ControlMode::Sleep
+    };
+    bme280::writeControlMeasurements(ctrl);
 }
 
-__attribute__((noreturn)) void testMainLoop()
+void doMeasurements()
 {
-  uint8_t temperatureSensor = 0;
-  nrf24::setToPRX();
+    bme280::startForceMeasurement();
+    
+    uint8_t counter = 3;
+    do {
+        if (counter == 0) 
+            break;
+        counter--;
+        _delay_ms(10);
+    } while (bme280::isBusy());
+}
 
-  while(true)
-  {
-    if(!(PINB & (1<<buttonLeftPin)))
+int8_t isButtonPressed(portType port, uint8_t pin)
+{
+    if(!(*port & (1<<pin)))
     {
-      _delay_ms(10);
-      if(!(PINB & (1<<buttonLeftPin)))
-      {
-        turnOnRedLed();
-        _delay_ms(1000);
-        turnOffLeds();
-        // nrf24::nRF24Packet packet;
-        // packet.header = nrf24::nRF24Packet::Header::TestDevice;
-        // packet.temperature[0] = temperatureSensor;
-        // for (uint8_t i = 2; i < nrf24::nRF24PacketSize; i++)
-        //   packet.raw[i] = 'a' + i;
-        // nrf24::sendData(packet.raw, nrf24::nRF24PacketSize);
-
-        // Theoretically this is more memory efficient
-        sensorPacket::SensorPacket packet
+        _delay_ms(10);
+        if(!(*port & (1<<pin)))
         {
-          .Info = {
-            .header = {
-              .direction = sensorPacket::PacketDirection::Response,
-              .errorFlag = 0,
-              .type = sensorPacket::PacketType::SensorInfo
-            },
-            .crc = 2,
-            {.identifierValue = 0},
-            {.sensorType = 1},
-            {.softwareVersionValue = 1},
-            {.hardwareVersionValue = 1}
-          }
-        };
-        // Theoretically this is less memory efficient
-        // sensorPacket::SensorPacket packet;
-        // packet.Info.header = {
-        //     .direction = sensorPacket::PacketDirection::Response,
-        //     .errorFlag = 0,
-        //     .type = sensorPacket::PacketType::SensorInfo
-        // };
-        // packet.Info.crc = 2;
-        // // packet.Info.identifierValue = 0;
-        // packet.Info.identifierRaw[0] = 0;
-        // packet.Info.sensorType = 1;
-        // // packet.Info.hardwareVersionValue = 1;
-        // // packet.Info.softwareVersionValue = 1;
-        // packet.Info.hardwareVersionRaw[0] = 1;
-        // packet.Info.softwareVersionRaw[0] = 1;
-
-            nrf24::setToPTX();
-            nrf24::sendData(packet.raw, 15);
-      }
+            return 1;
+        }
     }
-
-    if(!(PINB & (1<<buttonRightPin)))
-    {
-      _delay_ms(10);
-      if(!(PINB & (1<<buttonRightPin)))
-      {
-        turnOnRedLed();
-        _delay_ms(1000);
-        turnOffLeds();
-
-        // sensorPacket::SensorPacket packet
-        // {
-        //     .Data = {
-        //         .header = {
-        //             .direction = sensorPacket::PacketDirection::Response,
-        //             .errorFlag = 0,
-        //             .type = sensorPacket::PacketType::SensorData
-        //         },
-        //         .crc = 2,
-        //         {.identifierValue = 0},
-        //         {.temperatureValue = temperatureSensor},
-        //         {.pressureValue = 1},
-        //         {.humidityValue = 1},
-        //         {.batteryVoltageValue = 1}
-        //     }
-        // };
-
-        sensorPacket::SensorPacket packet;
-        packet.Data.header = {
-                    .direction = sensorPacket::PacketDirection::Response,
-                    .errorFlag = 0,
-                    .type = sensorPacket::PacketType::SensorData
-                };
-        packet.Data.crc = 2;
-        packet.Data.identifierValue = 0;
-
-        nrf24::setToPTX();
-        nrf24::sendData(packet.raw, 22);
-      }
-    }
-    temperatureSensor += 1;
-  }
+    return 0;
 }
+
+uint8_t packetSize = 32;
+sensorPacket::SensorPacket packet;
+
+
+
+// 0. rx_dr interrupt
+// 1. Read payload
+// 2. Clear rx_dr
+// 3. Read fifo status
+// 4. If more data execute step 1.
+uint8_t processReceivedData()
+{
+
+    uint8_t dataCoutToProcess = nrf24::getRxPayloadCount();
+    if(dataCoutToProcess > 32)
+    {
+        nrf24::flushRx();
+        return 1;
+    }
+    nrf24::readRxPayloadRaw(packet.raw, dataCoutToProcess);
+
+    // 2. Clear rx_dr
+    uint8_t resetReg = 0x40;
+    transmitSPI(&resetReg, &resetReg, nrf24::WriteRegister(nrf24::RegMap::Status), 1, NRF24_CSN_PORT, NRF24_CSN_PIN);
+    
+    eDELAY_MS(10);
+    nrf24::flushRx();
+
+    if(sensorPacket::checkCrc(packet.raw, dataCoutToProcess) == -1)
+    {
+        return 1;
+    }
+    turnOnGreenLed();
+    //eDELAY_MS(100);
+    if(packet.General.header.direction != sensorPacket::PacketDirection::Request)
+        return 1;
+
+    if(packet.General.header.errorFlag == 1)
+        return 1;
+
+    packet.Info.header.direction = sensorPacket::PacketDirection::Response;
+    packet.Info.header.errorFlag = 0;
+    // packet.Info.header.type = sensorPacket::PacketType::SensorInfo;
+    packet.CalibData.identifierValue = getSensorIdentifier();
+
+    switch (packet.General.header.type)
+    {
+    case sensorPacket::PacketType::SensorInfo:
+        // packet.Info.header.direction = sensorPacket::PacketDirection::Response;
+        // packet.Info.header.errorFlag = 0;
+        // packet.Info.header.type = sensorPacket::PacketType::SensorInfo;
+        // packet.Info.identifierValue = getSensorIdentifier();
+        packet.Info.hardwareVersionValue = 0;
+        packet.Info.softwareVersionValue = 0;
+        bme280::readId(&packet.Info.sensorType);
+
+        packetSize = 16;
+        break;
+    case sensorPacket::PacketType::SensorCalibData:
+        // packet.CalibData.header.direction = sensorPacket::PacketDirection::Response;
+        // packet.CalibData.header.errorFlag = 0;
+        // packet.CalibData.header.type = sensorPacket::PacketType::SensorCalibData;
+        // packet.CalibData.identifierValue = getSensorIdentifier();
+        eDELAY_MS(10);
+        bme280::readCalibrationData(packet.CalibData.calibData);
+        packetSize = 32;
+        
+        break;
+    default:
+        packet.CalibData.header.direction = sensorPacket::PacketDirection::Response;
+        packet.Info.header.errorFlag = 1;
+        break;
+    } 
+    return 0;
+}
+
+const uint8_t rxAddress[5] = {'a', 'b', 'c', 'd', '0'};
+// const uint8_t txAddress[5] = {'a', 'b', 'c', 'd', '0'};
 
 int main()
 {
@@ -292,7 +330,7 @@ int main()
 //   PORTD = 0;
   //
 //   DDRB = 0x00;
-//   LED_DDR |= (1 << ledPIN0) | (1 << ledPIN1);
+//   LED_DDR |= (1 << ledPin0) | (1 << ledPin1);
 //   PORTB = (1<<buttonLeftPin) | (1<<buttonRightPin);
 //
 //   turnOnGreenLed();
@@ -316,7 +354,6 @@ int main()
 //   // transmitSPI(&dd, &dd, ReadRegister(RegMap::Config), 1);
 //   // dd &= ~SetRegister(Reg::Config::pwr_up);
 //   // transmitSPI(&dd, &dd, WriteRegister(RegMap::Config), 1);
-
 //   turnOnGreenLed();
 //   _delay_ms(1000);
 //   turnOffLeds();
@@ -352,311 +389,142 @@ int main()
 //   }
   
   
-  DDRB = 0x00;
-  LED_DDR |= (1 << ledPIN0) | (1 << ledPIN1);
-  PORTB = (1<<buttonLeftPin) | (1<<buttonRightPin);
+    DDRB = 0x00;
+    DDRB |= (1 << PB5) | (1 << PB7) | (1 << ledPin0) | (1 << ledPin1) | (1 << batteryVoltageEnablePin) | (1 << batteryVoltagePin);
+    PORTB = static_cast<uint8_t>((1 << buttonRightPin) | (1 << PB5) | (1 << PB7) | (1 << batteryVoltagePin));
+    // PORTB |= (1<<buttonLeftPin);
 
-  DDRD |= (1<<NRF24_CSN_PIN) | (1<<NRF24_CE_PIN);
-  NRF24_CSN_PORT |= (1<<NRF24_CSN_PIN);
-
-  // Config interrupt
-  MCUCR = (1<<ISC11); // Set falling edgne on INT1 (irqPin)
-  // MCUCR |= (1<<SE); // Enable sleep
-  // MCUCR |= (1<<SM1) | (1<<SM0); // Configure sleep mode to Power Down
-  GIFR = 0xf4;
-  GIMSK = (1<<INT1) | (1<<PCIE0); 
-  PCMSK0 = (1<<PCINT0) | (1<<PCINT1);
-  uint8_t data = 1;
-  // uint8_t receivedBuf[5];
-  // uint8_t sendBuf[5] = {0x12, 0x23, 0x61, 0xdd, 0xab};
-  // NRF24_CE_PORT |= (1<<NRF24_CE_PIN); // Active
-  // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-
-  //init timer interrupt
-  // TIMSK = (1<<TOIE1);
-  // TIFR |= (1<<TOV1);
-  // TCCR1B = (1<<CS11);
-
-  // turnOnGreenLed();
-
-
-  turnOnRedLed();
-  intSPI(9600);
-  nrf24::initnRF24(); // nrf is in PRX
-  turnOffLeds();
-
-  sei();
-  // Power down
-  // dd = 0;
-  // transmitSPI(&dd, &dd, ReadRegister(RegMap::Config), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-  // dd &= ~SetRegister(Reg::Config::pwr_up);
-  // transmitSPI(&dd, &dd, WriteRegister(RegMap::Config), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-
-  
-
-  testMainLoop();
-  
-  
-  state = State::Sending;
-  
-
-
-  while (true)
-  {
-    switch (state)
-    {
-    case State::StartSending:
-    {
-      turnOnGreenLed();
-      _delay_ms(1000);
-
-      state = State::Sending;
-      nrf24::setToPTX();
-
-      uint8_t sendBuf2[5] = {data, 0x23, 0x61, 0xdd, 0xab};
-      nrf24::sendData(sendBuf2, 5);
-
-      data++;
-      nrf24::setToPRX();
-      NRF24_CE_PORT |= (1<<NRF24_CE_PIN); // Receiving mode
+    DDRD |= (1 << NRF24_CSN_PIN) | (1 << NRF24_CE_PIN) | (1 << BME280_CSN_PIN);
+    // Config interrupt
     
-      break;    
-    }
-    case State::Receiving:
-    break;
-    case State::Sending:
-    break;
-    case State::Idle:
+    MCUCR = (1<<ISC11); // Set falling edgne on INT1 (irqPin)
 
-    break;
-    case State::Sleep:
-    {
-      cli();
+    // MCUCR |= (1<<SE); // Enable sleep
+    // MCUCR |= (1<<SM1) | (1<<SM0); // Configure sleep mode to Power Down
+    GIFR = 0xf4;
+    GIMSK = (1<<INT1); // Enable INT1 interrupt
 
-      // state = State::Idle;
-      LED_PORT &= ~((1<<ledPIN0) | (1<<ledPIN1));
-      LED_PORT |= (1<< ledPIN1);
-      // _delay_ms(100);
-      LED_PORT &= ~((1<<ledPIN0) | (1<<ledPIN1));
+    //init timer interrupt
+    // TIMSK = (1<<TOIE1);
+    // TIFR |= (1<<TOV1);
+    // TCCR1B = (1<<CS11);
+    _delay_ms(100);
+    turnOnRedLed();
+    intSPI(9600);
+    nrf24::initnRF24(rxAddress, rxAddress);
+    turnOffLeds();
+    nrf24::setToPRX();
 
-      BODCR = 3;
-      BODCR = 2;
-      sleep_enable();
-      sei();
-      sleep_cpu();
-      sleep_disable();
-      sei();
-      break;
-    }
-    case State::SleepPwrDown:
-      turnOnRedLed();
-      _delay_ms(100);
-      turnOffLeds();
-      MCUCR |= (1<<SM1) | (1<<SM0); // Configure sleep mode to Power Down
-      // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-      sleep_enable();
-      sei();
-      sleep_cpu();
-      sleep_disable();
-      sei();
-      break;
-    case State::SleepStandby:
-      turnOnGreenLed();
-      _delay_ms(100);
-      turnOffLeds();
-      MCUCR &= ~(1<<SM0);
-      MCUCR |=  (1<<SM1); // Configure sleep mode to Standby
-      // set_sleep_mode(SLEEP_MODE_STANDBY);
-      sleep_enable();
-      sei();
-      sleep_cpu();
-      sleep_disable();
-      sei();
-      break;
-    }
+    sei();
 
+    configureMeasurementSensor();
 
-    // if(!(PINB & (1<<buttonLeftPin)))
-    // {
-    //   CE_PORT &= ~(1<<cePIN); // Clean receiving mode
-    //   setToPTX();
+    state = State::Idle; // TODO In future auto measuring will be processing
 
-    //   LED_PORT &= ~(1<<ledPIN0);
-    //   LED_PORT |= (1<<ledPIN1);
-
-    //   // transmitSPI(sendBuf, receivedBuf, static_cast<uint8_t> (Commands::ReadRegister) | static_cast<uint8_t>(RegisterAddress::Config), 5);
-    //   // transmitSPI(sendBuf, receivedBuf, static_cast<uint8_t>(Commands::WriteTXPayload), 5);
-    //   uint8_t sendBuf2[5] = {data, 0x23, 0x61, 0xdd, 0xab};
-    //   sendData(sendBuf2, 5);
-
-    //   data++;
-    //   setToPRX();
-    //   CE_PORT |= (1<<cePIN); // Receiving mode
+    uint8_t dataBuf[6]{0};
     
-    //   _delay_ms(500);
-    // }
+    while (true)
+    {
+        switch (state)
+        {
+        case State::ProcessIrq:
+            processIrq();
+            break;
+        case State::ToIdleMaxRetr:
+            nrf24::flushTx();
+            // transmitSPI(nullptr, nullptr, nrf24::WriteCmd(nrf24::Commands::FlushTx), 0, NRF24_CSN_PORT, NRF24_CSN_PIN);
+            eDELAY_MS(10);
+            [[fallthrough]];
+        case State::ToIdle:
+        {
+            uint8_t resetReg = 0x70;
+            transmitSPI(&resetReg, nullptr, nrf24::WriteRegister(nrf24::RegMap::Status), 1, NRF24_CSN_PORT, NRF24_CSN_PIN);
+            // eDELAY_MS(100);
+            
+            nrf24::setToPRX();
 
-    // if(!(PINB & (1<<buttonRightPin)))
-    // {
-    //   LED_PORT &= ~(1<<ledPIN1);
-    //   LED_PORT |= (1<<ledPIN0);
+            state = State::Idle;
+        }
+            break;
+        case State::Idle:
+            // if(!(PIND & (1<<NRF24_IRQ_PIN)))
+            // {
+            //     state = State::ProcessIrq;
+            // }
+            break;
+        case State::DoMeasurements:
+            doMeasurements();
+            bme280::readAllDataBmp280(dataBuf);
+            packet.Data.header.direction = sensorPacket::PacketDirection::Report;
+            packet.Data.header.errorFlag = 0;
+            packet.Data.header.type = sensorPacket::PacketType::SensorData;
+            
+            packet.Data.identifierValue = getSensorIdentifier();
+            
+            packet.Data.pressureRaw[2] = dataBuf[0];
+            packet.Data.pressureRaw[1] = dataBuf[1];
+            packet.Data.pressureRaw[0] = dataBuf[2];
+            
+            packet.Data.temperatureRaw[2] = dataBuf[3];
+            packet.Data.temperatureRaw[1] = dataBuf[4];
+            packet.Data.temperatureRaw[0] = dataBuf[5];
+            
+            readBatteryVoltage(packet.Data.batteryVoltageRaw);
 
-    //   transmitSPI(sendBuf, receivedBuf, ReadRegister(RegMap::Config), 1);
-    //   _delay_ms(10);
+            packetSize = 22;
+            state = State::SendPacket;
+            break;
+        case State::ProcessReceivedData:
+            if(processReceivedData())
+            {
+                turnOnRedLed();
+                state = State::Idle;
+            }
+            else
+            {
+                state = State::SendPacket;
+            }
+            break;
+        case State::SendPacket:
+            sensorPacket::generateCrc(packet.raw, packetSize);
+            eDELAY_MS(100);
+            nrf24::setToPTX();
+            eDELAY_MS(10);
+            nrf24::sendData(packet.raw, packetSize);
+            state = State::Idle;
+            break;
+        }
 
-    //   sendBuf[0] = 0x70;
-    //   transmitSPI(sendBuf, receivedBuf, WriteRegister(RegMap::Status), 1);
+        if(isButtonPressed(&PINB, buttonRightPin) && state == State::Idle)
+        {
+            state = State::DoMeasurements;
+        }
 
-    //   data++;
-    //   _delay_ms(100);
-    // }
-  }
-
-  return 0;
+        // if(isButtonPressed(&PINB, buttonLeftPin) && state == State::Idle)
+        // {
+        //     uint8_t bme280id = 0;
+        //     bme280::readId(&bme280id);
+        //     turnOnRedLed();
+        //     eDELAY_MS(100);
+        //     // turnOffLeds();
+        //     packet.Data.header.direction = sensorPacket::PacketDirection::Report;
+        //     packet.Data.header.errorFlag = 0;
+        //     packet.Data.header.type = sensorPacket::PacketType::SensorInfo;
+        //     packet.Data.identifierValue = getSensorIdentifier();
+        //     // packet.Info.hardwareVersionValue = getHardwareVersion();
+        //     // packet.Info.softwareVersionValue = getSoftwareVersion();
+        //
+        //     packet.Info.sensorType = bme280id;
+        //
+        //     packetSize = 12;
+        //     // sensorPacket::generateCrc(packet.raw, 12);
+        //
+        //     // nrf24::setToPTX();
+        //     // nrf24::sendData(packet.raw, 12);
+        //     // state = State::Idle;
+        //     state = State::SendPacket;
+        // }
+    }
 }
-#elif ATMEGA328P
-#include "usart.h"
 
-//DDRD
-constexpr uint8_t ledPIN = PD2;
-//DDRD
-constexpr uint8_t buttonLeftPin = PD4;
-
-// void turnOffLeds()
-// {
-//   LED_PORT &= ~((1<<ledPIN0) | (1<<ledPIN1));
-// }
-
-// void turnOnRedLed()
-// {
-//   turnOffLeds();
-//   LED_PORT |= (1<< ledPIN0);
-// }
-
-// void turnOnGreenLed()
-// {
-//   turnOffLeds();
-//   LED_PORT |= (1<< ledPIN1);
-// }
-
-
-ISR(INT1_vect)
-{
-  uint8_t status = transmitSPI(nullptr, nullptr, WriteCmd(Commands::Nop), 0);
-  uint8_t dataToProcess[32];
-  uint8_t dataCoutToProcess;
-  
-  switch (status & SetRegister(Reg::Status::max_rt, Reg::Status::tx_ds, Reg::Status::rx_dr))
-  {
-    case SetRegister(Reg::Status::rx_dr): // Data ready, received data
-      transmitSPI(dataToProcess, dataToProcess, WriteCmd(Commands::ReadRxPayloadWidth), 1);
-      dataCoutToProcess = dataToProcess[0];
-      
-      transmitSPI(dataToProcess, dataToProcess, WriteCmd(Commands::ReadRxPayload), dataCoutToProcess);
-
-      for (uint8_t i = 0; i < dataCoutToProcess; i++)
-      {
-        transmitUART(dataToProcess[i]);
-      }
-      
-
-      break;
-    case SetRegister(Reg::Status::max_rt):
-      break;
-    case SetRegister(Reg::Status::tx_ds):
-      break;
-  }
-  _delay_us(100);
-  uint8_t resetReg = 0x70;
-  transmitSPI(&resetReg, &resetReg, WriteRegister(RegMap::Status), 1);
-  // transmitSPI(nullptr, nullptr, WriteCmd(Commands::FlushRx), 1);
-  
-  // CE_PORT &= ~(1<<cePIN); // Receiving mode active
-  // _delay_us(100);
-  // CE_PORT |= (1<<cePIN); // Receiving mode active
-  
-}
-
-int main()
-{
-  initUSART(usartUBRR);
-  DDRD |= (1<<ledPIN);
-  PORTD |= (1<<ledPIN) | (1<<buttonLeftPin);
-  initSPI();
-  initnRF24();
-
-  uint8_t data = 1;
-  uint8_t receivedBuf[5];
-  uint8_t sendBuf[5] = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
-  transmitSPI(nullptr, nullptr, WriteCmd(Commands::FlushRx), 0);
-  setToPRX();
-  MCUCR = (1<<ISC11);
-  EIMSK = (1<<INT1);
-  
-  sei();
-
-  char info[] = "ready\n";
-  for (uint8_t i = 0; i < 6; i++)
-  {
-    transmitUART(info[i]);
-  }
-  
-  CE_PORT |= (1<<cePIN); // Receiving mode active
-
-  while (1)
-  {
-    //Send some data
-    // if(!(PIND & (1<<buttonLeftPin)))
-    // {
-    //   CE_PORT &= ~(1<<cePIN);
-    //   setToPTX();
-    //   PORTD = PORTD & ~(1<<ledPIN) | (((~(PORTD & (1<<ledPIN))) & (1<<ledPIN)));
-      
-    //   for (uint8_t i = 0; i < 5; i++)
-    //   {
-    //     transmitUART(sendBuf[i]);
-    //   }
-    //   uint8_t copyToSend[5];
-    //   for (uint8_t i = 0; i < 5; i++)
-    //   {
-    //     copyToSend[i] = sendBuf[i];
-    //   }
-      
-    //   sendData(copyToSend, 5);
-      
-    //   setToPRX();
-
-    //   CE_PORT |= (1<<cePIN); // Receiving mode
-
-    //   sendBuf[0]++;
-
-    //   // uint8_t status = transmitSPI(sendBuf, receivedBuf, ReadRegister(RegMap::Config), 1);
-    //   // transmitUART(status);
-      
-      
-      
-    //   // transmitSPI(sendBuf, receivedBuf, WriteCmd(Commands::ReadRxPayloadWidth),1);
-    //   // uint8_t width = receivedBuf[0];
-    //   // transmitUART(width);
-      
-    //   // transmitSPI(sendBuf, receivedBuf, WriteCmd(Commands::ReadRxPayload), width);
-    //   // for (uint8_t i = 0; i < width; i++)
-    //   // {
-    //   //   transmitUART(receivedBuf[i]);
-    //   // }
-      
-    //   // uint8_t resetReg[1];
-    //   // resetReg[0] = 0x70;
-    //   // transmitSPI(resetReg, resetReg, ReadRegister(RegMap::Status), 1); // Should be write?
-
-    //   // transmitSPI(nullptr, nullptr, WriteCmd(Commands::FlushRx), 0);
-    //   // _delay_ms(1);
-    //   _delay_ms(500);
-    //   // CE_PORT |= (1<<cePIN);
-    // }
-  }
-
-  return 0;
-}
-#endif
 #endif

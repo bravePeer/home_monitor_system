@@ -31,7 +31,7 @@ struct RingBuffer
         return 0;
     }
 
-    int32_t getDataCount()
+    int getDataCount()
     {
         if((beginIndex + 1) % bufferSize == endIndex)
             return bufferSize - 1; // Full buffer

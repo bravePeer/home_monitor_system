@@ -4,8 +4,6 @@
 #include "sensor/sensor_packet.hpp"
 #include "utilities/ring_buffer.hpp"
 
-constexpr unsigned DataBufferSize = 10;
-
 namespace sensor
 {
     enum class SensorType: uint8_t
@@ -31,6 +29,8 @@ namespace sensor
         uint8_t address[5]{0xff};
         uint64_t initializationTime = -1;
         uint64_t lastRecvDataTime = -1;
+        uint8_t calibrationData[26]{0xff};
+        uint8_t isCalibrationDataKnown = 0;
     };
 
     struct Sensor

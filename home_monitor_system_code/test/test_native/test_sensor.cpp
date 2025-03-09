@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <sensor/sensor.hpp>
+#include <rp2040/wireless_communicator/wireless_communicator.hpp>
 
 class ProcessSensorPayloadTest : public testing::Test
 {

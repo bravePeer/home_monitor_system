@@ -1,0 +1,8 @@
+{
+    "name": "spi_custom",
+    "version": "1.0.0",
+    "platforms": "*",
+    "build": {
+        "flags": ["-Iinclude", "-Os"]
+    }
+}

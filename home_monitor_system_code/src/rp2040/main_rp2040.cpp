@@ -4,53 +4,41 @@
 #include <hardware/spi.h>
 
 #include "rp2040/usb/usb_custom.h"
+#include "rp2040/config.hpp"
+#include "spi.hpp"
 
-#include "spi.h"
+// #include "nRF24.h"
+
+#include "rp2040/wireless_communicator/wireless_communicator.hpp"
+
+#include "rp2040/led.hpp"
+
 #define ADDR(val) (*(volatile uint32_t *)(val))
-#define NRF24_CSN_PORT ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET)
-#define NRF24_CSN_PIN (uint8_t)6
-#define NRF24_CE_PORT ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET)
-#define NRF24_CE_PIN (uint8_t)7
-#define NRF24_IRQ_PORT ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET)
-#define NRF24_IRQ_PIN (uint8_t)8
-#define DELAY_MS(val) sleep_ms(val)
-#define DELAY_US(val) sleep_us(val)
-#include "nRF24.h"
 
-#include "sensor/sensor.hpp"
+portType NRF24_CSN_PORT = &ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET);
+pinType NRF24_CSN_PIN = 6;
+portType NRF24_CE_PORT = &ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET);
+pinType NRF24_CE_PIN = 7;
+portType NRF24_IRQ_PORT = &ADDR(SIO_BASE + SIO_GPIO_OUT_OFFSET);
+pinType NRF24_IRQ_PIN = 8;
 
-enum class LedState: uint32_t
+uint8_t transmitSpiNrf24(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint8_t cmd, const uint8_t len)
 {
-    Off,
-    OnRed,
-    OnGreen,
-    Invert
-};
+    *NRF24_CSN_PORT &= (~(1<<NRF24_CSN_PIN));
+    uint8_t ret = transmitLowLevelSPI(sendBuf, receiveBuf, cmd, len);
+    *NRF24_CSN_PORT |= (1<<NRF24_CSN_PIN);
+    return ret;
+    // transmitSPI(sendBuf, receiveBuf, cmd, 1, NRF24_CSN_PORT, NRF24_CSN_PIN);
+}
 
-void setLedState(LedState ledState)
+void eDELAY_MS(uint32_t val) 
 {
-    const uint ledRedAnodePin = 17;
-    const uint ledGreenAnodePin = 16;
-    // gpio_set_drive_strength(ledGreenAnodePin, gpio_drive_strength::GPIO_DRIVE_STRENGTH_2MA);
-    switch (ledState)
-    {
-    case LedState::Off:
-        gpio_put(ledRedAnodePin, false);
-        gpio_put(ledGreenAnodePin, false);
-        break;
-    case LedState::OnRed:
-        gpio_put(ledGreenAnodePin, false);
-        gpio_put(ledRedAnodePin, true);
-        break;
-    case LedState::OnGreen:
-        gpio_put(ledGreenAnodePin, true);
-        gpio_put(ledRedAnodePin, false);
-        // gpio_set_drive_strength(ledGreenAnodePin, gpio_drive_strength::GPIO_DRIVE_STRENGTH_4MA);
-        break;
-    case LedState::Invert:
+    sleep_ms(val);
+}
 
-        break;
-    }
+void eDELAY_US(uint32_t val) 
+{
+    sleep_us(val);
 }
 
 volatile bool IrqStateNRF24 = false;
@@ -63,98 +51,53 @@ void gpioCallback(uint gpio, uint32_t event_mask)
     }
 }
 
-void processIrqStateNRF24()
-{
-    uint8_t dataToProcess[32];
-    uint8_t dataCoutToProcess;
 
-    switch(uint8_t status = nrf24::getStatusReg() & SetRegister(Reg::Status::max_rt, Reg::Status::tx_ds, Reg::Status::rx_dr))
-        {
-        case SetRegister(Reg::Status::rx_dr): // Data ready, received data
-            transmitSPI(&dataCoutToProcess, &dataCoutToProcess, WriteCmd(Commands::ReadRxPayloadWidth), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-            
-            setLedState(LedState::OnGreen);
-            transmitSPI(dataToProcess, dataToProcess, WriteCmd(Commands::ReadRxPayload), dataCoutToProcess, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-            // memcpy(dataToProcess, usbData.data, dataCoutToProcess);
-            if(sensor::processSensorPayload(dataToProcess, dataCoutToProcess) == -1)
-                setLedState(LedState::OnRed);
 
-            break;
-        case SetRegister(Reg::Status::max_rt):
-
-            break;
-        case SetRegister(Reg::Status::tx_ds):
-
-            break;
-        default:
-            break;
-        }
-        uint8_t resetReg = 0x70;
-        transmitSPI(&resetReg, &resetReg, WriteRegister(RegMap::Status), 1, &NRF24_CSN_PORT, NRF24_CSN_PIN);
-        // NRF24_CE_PORT |= (1<<NRF24_CE_PIN);
-}
 
 int main()
 {
     stdio_init_all();
-
+    initLedState();
     gpio_init(5);
-    gpio_init(17);
-    gpio_init(16);
+
     gpio_init(NRF24_CE_PIN);
     gpio_init(NRF24_CSN_PIN);
     gpio_init(NRF24_IRQ_PIN);
     gpio_set_dir(NRF24_CE_PIN, true);
     gpio_set_dir(NRF24_CSN_PIN, true);
     gpio_set_dir(NRF24_IRQ_PIN, false);
-    NRF24_CSN_PORT |= (1<<NRF24_CSN_PIN);
-
-
-    gpio_set_dir(17, true);
-    gpio_set_dir(16, true);
-
-    setLedState(LedState::OnGreen);
-
-    usb_device_init();
-
-    usbData.dataLen = 10;
-
-    for (size_t i = 0; i < usbData.dataLen; i++)
-        usbData.data[i] = 'a';
-    
-   
+    *NRF24_CSN_PORT |= (1 << NRF24_CSN_PIN);
 
     setLedState(LedState::OnRed);
 
-    // NRF24_CE_PORT &= ~(1<<NRF24_CE_PIN); // TODO is this needed?
-    intSPI(1000000);
+    usb_device_init();
+
+
+    intSPI(5000000);
     gpio_set_irq_callback(gpioCallback);
     irq_set_enabled(IO_IRQ_BANK0, true);
     gpio_set_irq_enabled(NRF24_IRQ_PIN, GPIO_IRQ_EDGE_FALL, true);
 
-    nrf24::initnRF24();
-    nrf24::setToPRX();
-    NRF24_CE_PORT |= (1<<NRF24_CE_PIN);
+    initWirelessCommunicator();
 
-    sleep_ms(2000);
-    setLedState(LedState::OnGreen);
-    sleep_ms(1000);
-    setLedState(LedState::Off);
+    blinkLed(LedState::OnGreen, 2, 500);
 
-    bool receivedData = false;
+    // bool receivedData = false;
 
     while (true) {
-        if(receivedData)
-        {
-            receivedData = false;
-            continue;
-        }
+        // if(receivedData)
+        // {
+        //     receivedData = false;
+        //     continue;
+        // }
         
         if(IrqStateNRF24)
         {
            IrqStateNRF24 = false; 
            processIrqStateNRF24();
         }
+        // DELAY_MS(100);
+        processSensorSends();
     }
 }
 #endif

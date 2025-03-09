@@ -1,3 +1,4 @@
+#pragma once
 #ifdef RP2040
 // extern "C" {
     #include "pico/types.h"

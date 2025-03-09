@@ -139,4 +139,19 @@ struct List
 
         return -1;
     }
+
+    int size()
+    {
+        
+        int32_t tmpHead = head;
+        uint32_t counter = 0;
+        
+        while (tmpHead != -1)
+        {
+            counter++;
+            tmpHead = nodes[tmpHead].nextNode;
+        }
+        
+        return counter;
+    }
 };

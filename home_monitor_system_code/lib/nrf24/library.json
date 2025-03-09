@@ -1,0 +1,11 @@
+{
+    "name": "nrf24",
+    "version": "1.0.0",
+    "dependencies":
+    {
+        "spi_custom" : "*"
+    },
+    "build": {
+        "flags": ["-Iinclude", "-Os"]
+    }
+}

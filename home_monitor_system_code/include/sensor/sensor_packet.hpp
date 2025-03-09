@@ -3,19 +3,34 @@
 
 namespace sensorPacket
 {
-    enum PacketDirection
+    /// @brief Possible directions of packet
+    /// 
+    ///  - Request (0b00) Receiver sends data (request packet) to Sensor
+    ///
+    ///  - Response (0b10) Sensor answers to Receiver Request 
+    ///
+    ///  - Report (0b11) Sensor sends data to Receiver
+    ///
+    enum class PacketDirection : uint8_t
     {
-        Request = 0b00,
-        Response = 0b01,
-        Reserved0 = 0b10,
-        Reserved1 = 0b11,
+        Request  = 0b00,
+        Reserved = 0b01,
+        Response = 0b10,
+        Report   = 0b11,
     };
 
-    enum PacketType
+    enum class PacketType : uint8_t
     {
-        Test = 0b00000,
-        SensorData = 0b00001,
-        SensorInfo = 0b00010
+        Test        = 0b00000,
+        SensorInfo  = 0b00001,
+        SensorCalibData = 0b00010,
+        SensorData  = 0b00011,
+    };
+
+    enum class PacketError : uint8_t
+    {
+        NoError = 0,
+        Error = 1
     };
 
     #pragma pack(push, 1)
@@ -24,12 +39,27 @@ namespace sensorPacket
         PacketDirection direction : 2;
         uint8_t errorFlag : 1;
         PacketType type : 5;
+ 
+        // operator uint8_t() const
+        // {
+        //     return (direction << 6) | (errorFlag << 5) | type;
+        // }
     };
     #pragma pack(pop)
 
+    constexpr uint8_t toHeader(PacketDirection direction, PacketError errorFlag, PacketType packetType)
+    {
+        return static_cast<uint8_t>(
+            static_cast<uint8_t>(direction) << 6 |
+            static_cast<uint8_t>(errorFlag) << 5 |
+            static_cast<uint8_t>(packetType)
+        );
+    }
+
+    #pragma pack(push, 1)
     union SensorPacket
     {
-        uint8_t raw[32]{0};
+        uint8_t raw[32];
 
         struct 
         {
@@ -42,7 +72,7 @@ namespace sensorPacket
             };
             union
             {
-                uint8_t rawData[30];
+                uint8_t rawData[26];
             };
         } General;
 
@@ -101,9 +131,28 @@ namespace sensorPacket
                 uint32_t hardwareVersionValue;
             };
         } Info;
+
+        struct
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+            uint8_t calibData[26];
+        } CalibData;
+    };
+    #pragma pack(pop)
+
+    struct SensorPacketWithLen
+    {
+        SensorPacket packet;
+        uint8_t dataLen = 0;
     };
 
-    int generateCrc(uint8_t* payload, uint8_t len)
+    inline int8_t generateCrc(uint8_t* payload, uint8_t len)
     {
         if(len < 3)
             return -1;
@@ -117,9 +166,9 @@ namespace sensorPacket
     }
 
     // Calculating CRC is for now simple sum
-    int checkCrc(const uint8_t* payload, uint8_t len)
+    inline int8_t checkCrc(const uint8_t* payload, uint8_t len)
     {
-        if(len < 3)
+        if(len < 2)
             return -1;
         
         uint8_t sum = payload[0];

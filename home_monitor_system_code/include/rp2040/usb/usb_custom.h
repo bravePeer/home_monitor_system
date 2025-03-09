@@ -1,3 +1,4 @@
+#pragma once
 #if defined(RP2040)
 extern "C"
 {
@@ -153,6 +154,11 @@ struct UsbData
 };
 
 extern UsbData usbData;
+
+constexpr uint8_t getRawUsbCommand(UsbCommand command)
+{
+    return static_cast<uint8_t>(command);
+}
 
 constexpr UsbCommand getUsbCommand(uint8_t data)
 {
