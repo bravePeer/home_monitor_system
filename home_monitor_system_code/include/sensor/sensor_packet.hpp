@@ -78,7 +78,7 @@ namespace sensorPacket
 
         struct
         {
-            Header header;
+            Header header; 
             uint8_t crc;
             union
             {
@@ -105,7 +105,7 @@ namespace sensorPacket
                 uint8_t batteryVoltageRaw[4];
                 uint32_t batteryVoltageValue;
             };
-        } Data;
+        } Data; // 22 bytes
 
         struct 
         {
@@ -130,7 +130,7 @@ namespace sensorPacket
                 uint8_t hardwareVersionRaw[4];
                 uint32_t hardwareVersionValue;
             };
-        } Info;
+        } Info; // 15 bytes
 
         struct
         {
@@ -141,8 +141,8 @@ namespace sensorPacket
                 uint8_t identifierRaw[4];
                 uint32_t identifierValue;
             };
-            uint8_t calibData[26];
-        } CalibData;
+            uint8_t calibData[26]; 
+        } CalibData; // 32 bytes
     };
     #pragma pack(pop)
 

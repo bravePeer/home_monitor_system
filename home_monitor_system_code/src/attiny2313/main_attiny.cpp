@@ -300,7 +300,7 @@ uint8_t processReceivedData()
         packet.Info.softwareVersionValue = 0;
         bme280::readId(&packet.Info.sensorType);
 
-        packetSize = 16;
+        packetSize = 15;
         break;
     case sensorPacket::PacketType::SensorCalibData:
         // packet.CalibData.header.direction = sensorPacket::PacketDirection::Response;
