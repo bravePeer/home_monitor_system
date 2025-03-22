@@ -19,11 +19,23 @@ usbCommandMask = 0x3f
 #                            //  Response data: <Sensor not paired 4 B>
 #                            //  Response data: <Sensor out of range 4 B>
 #                            //  Response data: <Bad data lenght 4 B>
+#                             //  Response data: <Sensor identifier 4 B> <Calibration data depends of sensor type, up to 62 B>
+#                             // Error responses:
+#                             //  Response data: <Sensor not paired 4 B>
+#                             //  Response data: <Sensor out of range 4 B>
+#                            //  Response data: <Bad data lenght 4 B>
+#                             //  Response data: <No calibration data 4 B>
 #                             //  Response data: <Sensor identifier 4 B> <Data count 4 B>
 #                            //  Response data: <Raw data depends of sensor type, up to 62 B>
 #                            // Error responses:
 #                            //  Response data: <Sensor not paired 4 B>
 #                            //  ~~Response data: <Sensor out of range 4 B>~~
+#                            //  Response data: <Bad data lenght 4 B>
+#                            // Note: This command is used to get last data from sensor and not remove it from buffer - is much slower than GetSensorData
+#                            //  Response data: <Raw data depends of sensor type, up to 62 B>
+#                            // Error responses:
+#                            //  Response data: <Sensor not paired 4 B>
+#                            //  Response data: <Sensor out of range 4 B>
 #                            //  Response data: <Bad data lenght 4 B>
 class UsbCommand(Enum):
     AvailableData = 0x10
@@ -31,8 +43,10 @@ class UsbCommand(Enum):
     GetKnownSensorsCount = 0x20
     GetKnownSensors = 0x21
     GetSensorInfo = 0x22
-    GetSensorDataCount = 0x23
-    GetSensorData = 0x24
+    GetSensorCalibData = 0x23
+    GetSensorDataCount = 0x24
+    GetSensorData = 0x25
+    GetSensorLastData = 0x26
     GetStatus = 0x3c
     GetSensorStatus = 0x3d
     InitializeSensor = 0x3e
@@ -55,4 +69,5 @@ class UsbCommandErrorCode(Enum):
     SensorNotKnown  = 0x02000000
     SensorOutOfRange = 0x02000001
     SensorNoDataAvailable = 0x02000002
+    SensorCalibrationDataNotKnown = 0x02000003
 
