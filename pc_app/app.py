@@ -69,8 +69,7 @@ def read_sensor_info(identifier, silent, verbose):
     logger.silent = silent
     try:
         sensors_info_raw = MonitorStationCommunicator().read_sensor_info_raw(identifier)
-        sensor = Sensor()
-        sensor.set_sensor_info(sensors_info_raw)
+        sensor = SensorBuilder().build_from_bytes(sensors_info_raw)
         click.echo("Sensor info:")
         click.echo(sensor)
         if verbose:
@@ -81,19 +80,45 @@ def read_sensor_info(identifier, silent, verbose):
 
 @click.command()
 @click.argument("identifier")
+@click.option("-f", "--sfunction", help="Function to call, if type 'all' all functions will be called")
 @click.option("--silent/--no-silent", default=True)
-def read_sensor_last_data(identifier, silent):
+@click.option("--verbose/--no-verbose", default=False)
+def read_sensor_last_data(identifier, sfunction, silent, verbose):
+    """Read newest data from sensor with given identifier."""
     identifier = int(identifier, 0)
     logger.silent = silent
     try:
         sensors_info_raw = MonitorStationCommunicator().read_sensor_info_raw(identifier)
+        if verbose:
+            click.echo(f"Raw sensor info: {sensors_info_raw}")
         sensor = SensorBuilder().build_from_bytes(sensors_info_raw)
-        click.echo("Sensor info:")
-        click.echo(sensor)
-        
+        if verbose:
+            sensor.verbose = True
+
+        if sensor._IS_CALIBRATION_DATA_NEEDED and not sensor.is_calibration_data_known:
+            calib_data = MonitorStationCommunicator().read_calibration_data(identifier)
+            sensor.set_calibration_data(calib_data)
+            if verbose:
+                click.echo(f"Raw calibration data: {calib_data}")
+
+        sensor_data = MonitorStationCommunicator().read_sensor_last_data(identifier)
+        if verbose:
+            print(f"Raw sensor data: {sensor_data}")
+        sensor.enqueue_data(sensor_data)
+
+        if sfunction is None:
+            click.echo("Select one of available functions or type 'all' to execute all:")
+            click.echo(sensor.get_available_functions()) 
+
+        elif sfunction == "all":
+            for func in sensor.get_available_functions():
+                click.echo(f"{func}(): {getattr(sensor, func)()}")
+        else:
+            click.echo(f"{sfunction}(): {getattr(sensor, sfunction)()}")
 
     except Exception as e:
         click.echo(f"Cannot read sensor info from 0x{identifier:08x}, error: {e}")
+
 
 cli.add_command(test_connection)
 cli.add_command(list_usb_devices)

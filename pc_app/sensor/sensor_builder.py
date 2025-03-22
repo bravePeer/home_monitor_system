@@ -17,11 +17,14 @@ class SensorBuilder(metaclass=SensorBuilderMeta):
         sensor = Sensor()
         sensor.set_sensor_info(raw_data)
         if sensor.sensor_type == SensorType.Test:
-            raise SensorExceptionGeneric("Test sensor type is not supported!")
+            raise SensorExceptionGeneric("Test sensor type is not supported!", None)
         elif sensor.sensor_type == SensorType.SimpleWheatherStation:
             sensor = SimpleWeatherStation()
-            sensor.set_sensor_info(raw_data)
+            
         elif sensor.sensor_type == SensorType.Unknown:
-            raise SensorExceptionGeneric("Unknown sensor type")
-
+            raise SensorExceptionGeneric("Unknown sensor type", None)
+        else:
+            raise SensorExceptionGeneric(f"Unknown sensor type: 0x{sensor.sensor_type:02X}", None)
+        
+        sensor.set_sensor_info(raw_data)
         return sensor
