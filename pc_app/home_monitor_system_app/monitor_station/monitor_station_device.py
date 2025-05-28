@@ -4,6 +4,9 @@ from logger import logger
 from .usb_commands import UsbErrorCode, UsbCommandErrorCode, usbErrorMask
 from .usb_error import *
 from .utils import bytes_to_str
+import libusb_package
+import usb.core
+import usb.backend.libusb1
 
 class MonitorStationDeviceMeta(type):
     _instances = {}
@@ -37,7 +40,7 @@ class MonitorStationDevice(metaclass=MonitorStationDeviceMeta):
     def configure_endpoints(self, device) -> bool:
         cfg = device.get_active_configuration() # Get configuration
         intf = cfg[(0, 0)]
-
+        
         self.outendpoint = usb.util.find_descriptor(
             intf,
             # match the first OUT endpoint
@@ -72,7 +75,8 @@ class MonitorStationDevice(metaclass=MonitorStationDeviceMeta):
 
         logger.info("Connecting to device...", self.__class__.__name__)
         # dev = usb.core.find(idVendor=self.id_vendor, idProduct=self.id_product)
-        self.device = usb.core.find(idVendor=0x0000, idProduct=0x0001)
+        libusb1_backend = libusb1_backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
+        self.device = usb.core.find(idVendor=0x0000, idProduct=0x0001, backend=libusb1_backend)
 
         if self.device is None:
             logger.error("Device not found!", self.__class__.__name__)

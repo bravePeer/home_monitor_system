@@ -1,0 +1,37 @@
+services:
+  home_monitor_system_app:
+    build:
+      context: ./home_monitor_system_app
+      dockerfile: dockerfile
+    image: home_monitor_system_app:latest
+    container_name: home_monitor_system_app
+    devices:
+      - "/dev/bus/usb/001/003:/dev/bus/usb/001/003"
+    volumes:
+      - ".log/:/.log/"
+    networks:
+      - backend
+    depends_on:
+      - home_monitor_system_db
+
+  home_monitor_system_db:
+    image: mysql
+    container_name: home_monitor_system_db
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: monitor_station_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - monitor_station_db_volume:/var/lib/mysql
+      # - ./mysql-config:/etc/mysql/conf.d
+    networks:
+      - backend
+  
+volumes:
+  monitor_station_db_volume:
+
+networks:
+  backend:

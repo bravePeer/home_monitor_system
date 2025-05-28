@@ -1,5 +1,5 @@
 from .sensor_types import SensorType
-from .sensor_error import SensorExceptionGeneric, SensorExceptionCalibrationData
+from .sensor_error import SensorExceptionGeneric, SensorExceptionCalibrationData, SensorExceptionDataEmpty
 from struct import unpack
 
 class Sensor:
@@ -89,6 +89,8 @@ class SimpleWeatherStation(Sensor):
     # reserved = self.calibration_data[24] | (self.calibration_data[25] << 8)
 
     def __calculate_temperature_fine(self):
+        if len(self.data[0]) == 0:
+            raise SensorExceptionDataEmpty()
         # TODO select calculation data
         adc_t = int.from_bytes(self.data[0][14:18], "little")
         adc_t = adc_t >> 4
@@ -115,10 +117,10 @@ class SimpleWeatherStation(Sensor):
         fine_t = self.__calculate_temperature_fine()
         return ((fine_t * 5 + 128) >> 8) / 100.0
          
-    def sfunc_get_humidity(self)->float:
-        return None
+    def sfunc_get_humidity(self) -> float:
+        return -1.0
 
-    def sfunc_get_pressure(self)->float:
+    def sfunc_get_pressure(self) -> float:
         """Calculate pressure in Pa."""
         self._check_calibration_data()
         fine_t = self.__calculate_temperature_fine()
@@ -190,4 +192,19 @@ class SimpleWeatherStation(Sensor):
         return float(p) / 256.0
 
     def sfunc_get_battery_voltage(self)->float:
-        pass
+        return -1.0
+
+class SensorTestClass(Sensor):
+    def __init__(self, identifier):
+        super().__init__()
+        self.sensor_type = SensorType.Test
+        self._IS_CALIBRATION_DATA_NEEDED = False
+        self.identifier = identifier
+
+    def sfunc_get_test_float(self) -> float:
+        return 21.37
+    
+    def sfunc_get_test_int(self) -> int:
+        return 123
+    
+    

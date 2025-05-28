@@ -1,20 +1,26 @@
-import time
+import database_manager.database_manager
+import database_manager.database_connector
 from logger import logger
-from monitor_station import MonitorStationDevice, MonitorStationCommunicator
-import usb.core
-import usb.util
-import time
+from monitor_station.monitor_station_communicator import MonitorStationCommunicator
 import click
-from sensor.sensor import Sensor
 from sensor.sensor_builder import SensorBuilder
+from sensor.sensor import SensorTestClass
+import database_manager
+import dotenv
+import os
+import usb
+from monitor_station.monitor_station_device import MonitorStationDevice
+
+dotenv.load_dotenv()
 
 
-idVendor=0x0000
-idProduct=0x0001
+ID_VENDOR = int(os.getenv("ID_VENDOR"), base=16)
+ID_PRODUCT = int(os.getenv("ID_PRODUCT"), base=16)
 
 
 @click.group()
 def cli():
+    """CLI tool"""
     pass
 
 @click.command()
@@ -120,12 +126,87 @@ def read_sensor_last_data(identifier, sfunction, silent, verbose):
         click.echo(f"Cannot read sensor info from 0x{identifier:08x}, error: {e}")
 
 
+
+"""Daemon commands"""
+@cli.group()
+def daemon():
+    """Daemon commands"""
+    pass
+
+@daemon.command()
+def start():
+    import os
+    print(os.listdir("."))
+    import subprocess
+    subprocess.Popen(["python", "daemon/daemon.py"],
+                     stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL,
+                     close_fds=True
+                    )
+    import time
+    time.sleep(1)
+    with open("daemon.log", "r") as f:
+        l = f.readline()
+        while l:
+            print(l, end="")
+            l = f.readline()
+    
+@daemon.command()
+def stop():
+    from daemon.daemon import stop_daemon
+    stop_daemon()
+    
+
+@daemon.command()
+def status():
+    from daemon.daemon import is_deamon_alive
+    if is_deamon_alive():
+        print("Daemon is alive")
+    else:
+        print("Daemon is not alive")
+
+        
+"""Database commands"""
+
+
+@cli.group()
+def db():
+    """Group of commands using with database"""
+    pass
+
+@db.command()
+def check_connection():
+    db = database_manager.database_connector.connect_to_database()
+    database_manager.database_manager.DatabaseManager(db)
+    # print("Connected to database!")
+
+@db.command()
+@click.option("--verbose/--no-verbose", default=False)
+def table_test(verbose):
+    db = database_manager.database_connector.connect_to_database()
+    dm = database_manager.database_manager.DatabaseManager(db)
+    dm.archive_data(SensorTestClass(2))
+    
+
+
+@db.command()
+@click.argument("command")
+@click.option("--verbose/--no-verbose", default=False)
+def execute_command(command, verbose):
+    print(f"Executing comand: {command}")
+    db = database_manager.database_connector.connect_to_database()
+    dm = database_manager.database_manager.DatabaseManager(db)
+    ret = dm.execute_command(command)
+    print(ret)
+
 cli.add_command(test_connection)
 cli.add_command(list_usb_devices)
 cli.add_command(list_sensors)
 cli.add_command(list_sensors_identifiers)
 cli.add_command(read_sensor_info)
 cli.add_command(read_sensor_last_data)
+
 
 if __name__ == "__main__":
     logger.init()
