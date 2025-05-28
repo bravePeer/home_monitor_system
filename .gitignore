@@ -8,3 +8,4 @@
 *.bkp
 *.code-workspace
 **/*-backups
+**/.env
