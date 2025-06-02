@@ -30,16 +30,33 @@ enum class UsbCommand: uint8_t
                               //  Response data: <Sensor not paired 4 B>
                               //  Response data: <Sensor out of range 4 B>
                               //  Response data: <Bad data lenght 4 B>
-    
-    GetSensorDataCount = 0x23, //  Request data:  <Sensor identifier 4 B>
+
+    GetSensorCalibData = 0x23, //  Request data:  <Sensor identifier 4 B> 
+                               //  Response data: <Sensor identifier 4 B> <Calibration data depends of sensor type, up to 62 B>
+                               // Error responses:
+                               //  Response data: <Sensor not paired 4 B>
+                               //  Response data: <Sensor out of range 4 B>
+                              //  Response data: <Bad data lenght 4 B>
+                               //  Response data: <No calibration data 4 B>
+
+    GetSensorDataCount = 0x24, //  Request data:  <Sensor identifier 4 B>
                                //  Response data: <Sensor identifier 4 B> <Data count 4 B>
 
-    GetSensorData = 0x24,     //  Request data:  <Sensor identifier 4 B>
+    GetSensorData = 0x25,     //  Request data:  <Sensor identifier 4 B>
                               //  Response data: <Raw data depends of sensor type, up to 62 B>
                               // Error responses:
                               //  Response data: <Sensor not paired 4 B>
                               //  ~~Response data: <Sensor out of range 4 B>~~
                               //  Response data: <Bad data lenght 4 B>
+
+                              // Note: This command is used to get last data from sensor and not remove it from buffer - is much slower than GetSensorData
+    GetSensorLastData = 0x26, //  Request data:  <Sensor identifier 4 B>
+                              //  Response data: <Raw data depends of sensor type, up to 62 B>
+                              // Error responses:
+                              //  Response data: <Sensor not paired 4 B>
+                              //  Response data: <Sensor out of range 4 B>
+                              //  Response data: <Bad data lenght 4 B>
+
     GetStatus = 0x3c, // TODO change value
     GetSensorStatus = 0x3d, // TODO change value
     InitializeSensor = 0x3e, // TODO change value
@@ -63,6 +80,7 @@ enum class UsbCommandErrorCode: uint32_t
     NotKnownSensors   = 0x01000000,
     SensorNotKnown  = 0x02000000,
     SensorOutOfRange = 0x02000001,
-    SensorNoDataAvailable = 0x02000002
+    SensorNoDataAvailable = 0x02000002,
+    SensorCalibrationDataNotKnown = 0x02000003,
 };
 #endif

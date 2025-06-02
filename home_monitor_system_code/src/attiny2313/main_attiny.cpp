@@ -104,11 +104,11 @@ constexpr uint32_t getSoftwareVersion()
 
 enum class State : uint8_t
 {
+    // PwrUp,
+    // PwrDown,
     ToIdle,
     ToIdleMaxRetr,
     Idle,
-    PwrUp,
-    PwrDown,
     ProcessReceivedData,
     DoMeasurements,
     SendPacket,

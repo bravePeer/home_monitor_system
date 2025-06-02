@@ -12,16 +12,22 @@ List<sensor::Sensor, maxKnownSensors> knownSensors;
 RingBuffer<sensorPacket::SensorPacketWithLen, maxPacketToSend> sendPacketRingBuffer;
 extern portType NRF24_CSN_PORT;
 extern pinType NRF24_CSN_PIN;
-uint32_t isSending = 0;
+volatile uint32_t isSending = 0;
 
 void processSensorSends()
 {
+    static uint64_t lastSendTime = 0;
+
     if(isSending)
         return;
     if(sendPacketRingBuffer.getDataCount() == 0)
         return;
-    sleep_ms(50);
 
+    if(getTime() - lastSendTime < 500000)
+        return;
+    lastSendTime = getTime();
+    
+    sleep_ms(50);
     
     sensorPacket::SensorPacketWithLen packetToSend; 
     sendPacketRingBuffer.popData(packetToSend);
@@ -121,6 +127,24 @@ int processSensorPayload(const uint8_t* payload, uint8_t len)
         sendPacketRingBuffer.pushData(packetToSend);
     }
 
+    if(ptrSensor->sensorInfo.sensorType == sensor::SensorType::Unknown)
+    {
+        sensorPacket::SensorPacketWithLen packetToSend;
+        for (size_t i = 0; i < 32; i++)
+        {
+            packetToSend.packet.raw[i] = 0;
+        }
+        
+        packetToSend.packet.CalibData.header.direction = sensorPacket::PacketDirection::Request;
+        packetToSend.packet.CalibData.header.errorFlag = 0;
+        packetToSend.packet.CalibData.header.type = sensorPacket::PacketType::SensorInfo;
+        packetToSend.packet.CalibData.identifierValue = ptrSensor->sensorInfo.identifier;
+
+        packetToSend.dataLen = 6;
+
+        sendPacketRingBuffer.pushData(packetToSend);
+    }
+
     return 0;
 }
 
@@ -191,23 +215,6 @@ void initWirelessCommunicator()
 {
     nrf24::initnRF24(rxAddress, txAddress);
     nrf24::setToPRX();
-
-    // Test
-    // sensorPacket::SensorPacketWithLen packetToSend;
-    // for (int i = 0; i < 32; i++)
-    // {
-    //     packetToSend.packet.raw[i] = 0;
-    // }
-    
-    // packetToSend.packet.CalibData.header.direction = sensorPacket::PacketDirection::Request;
-    // packetToSend.packet.CalibData.header.errorFlag = 0;
-    // packetToSend.packet.CalibData.header.type = sensorPacket::PacketType::SensorCalibData;
-    // packetToSend.packet.CalibData.identifierValue = 0;
-
-    // packetToSend.dataLen = 32;
-
-    // sendPacketRingBuffer.pushData(packetToSend);
-
 }
 
 #endif

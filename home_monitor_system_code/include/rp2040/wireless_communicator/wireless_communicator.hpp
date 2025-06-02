@@ -18,7 +18,6 @@ int processSensorPayload(const uint8_t* payload, uint8_t len);
 
 void processIrqStateNRF24();
 
-
 void initWirelessCommunicator();
 
 #endif

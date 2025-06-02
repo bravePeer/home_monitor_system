@@ -7,8 +7,6 @@
 #include "rp2040/config.hpp"
 #include "spi.hpp"
 
-// #include "nRF24.h"
-
 #include "rp2040/wireless_communicator/wireless_communicator.hpp"
 
 #include "rp2040/led.hpp"
@@ -51,9 +49,6 @@ void gpioCallback(uint gpio, uint32_t event_mask)
     }
 }
 
-
-
-
 int main()
 {
     stdio_init_all();
@@ -83,7 +78,8 @@ int main()
     blinkLed(LedState::OnGreen, 2, 500);
 
     // bool receivedData = false;
-
+    int i =0;
+    
     while (true) {
         // if(receivedData)
         // {
@@ -99,5 +95,6 @@ int main()
         // DELAY_MS(100);
         processSensorSends();
     }
+
 }
 #endif

@@ -124,14 +124,43 @@ UsbCommandErrorCode processUsbCommandGetSensorInfo(const uint8_t* rxBuf, uint16_
     txBuf[4] = static_cast<uint8_t>(sensor->sensorInfo.sensorType);
     valueToBytes(sensor->sensorInfo.softwareVersion, &txBuf[5]);
     valueToBytes(sensor->sensorInfo.hardwareVersion, &txBuf[9]);    
-    txBuf[10] = sensor->sensorInfo.address[0];
-    txBuf[11] = sensor->sensorInfo.address[1];
-    txBuf[12] = sensor->sensorInfo.address[2];
-    txBuf[13] = sensor->sensorInfo.address[3];
-    txBuf[14] = sensor->sensorInfo.address[4];
-    valueToBytes(sensor->sensorInfo.initializationTime, &txBuf[15]);
-    valueToBytes(sensor->sensorInfo.lastRecvDataTime, &txBuf[23]);    
+    txBuf[13] = sensor->sensorInfo.address[0];
+    txBuf[14] = sensor->sensorInfo.address[1];
+    txBuf[15] = sensor->sensorInfo.address[2];
+    txBuf[16] = sensor->sensorInfo.address[3];
+    txBuf[17] = sensor->sensorInfo.address[4];
+    valueToBytes(sensor->sensorInfo.initializationTime, &txBuf[18]);
+    valueToBytes(sensor->sensorInfo.lastRecvDataTime, &txBuf[26]);    
     txLen = 34;
+
+    return UsbCommandErrorCode::NoError;
+}
+
+UsbCommandErrorCode GetSensorCalibData(const uint8_t* rxBuf, uint16_t rxLen, uint8_t* txBuf, uint16_t& txLen)
+{
+    if(rxLen != 6)
+        return UsbCommandErrorCode::BadDataLenght;
+
+    uint32_t sensorIdentifier = bytesToUint32(&rxBuf[2]);
+    sensor::Sensor* sensor = nullptr;
+    int result = knownSensors.valueByExpression([](sensor::Sensor& sensor, void* arg)->int {
+        if(sensor.sensorInfo.identifier == *reinterpret_cast<uint32_t*>(arg))
+            return 0;
+        return -1;
+    }, sensor, &sensorIdentifier);
+
+    if(result == -1)
+        return UsbCommandErrorCode::SensorNotKnown;
+
+    if(!sensor->sensorInfo.isCalibrationDataKnown)
+        return UsbCommandErrorCode::SensorCalibrationDataNotKnown;
+
+    txLen = 0;
+    for (uint8_t& a : sensor->sensorInfo.calibrationData)
+    {
+        txBuf[txLen] = a;
+        txLen++;
+    }
 
     return UsbCommandErrorCode::NoError;
 }
@@ -191,6 +220,44 @@ UsbCommandErrorCode processUsbCommandGetSensorData(const uint8_t* rxBuf, uint16_
     return UsbCommandErrorCode::NoError;
 }
 
+UsbCommandErrorCode processUsbCommandGetLastSensorData(const uint8_t* rxBuf, uint16_t rxLen, uint8_t* txBuf, uint16_t& txLen)
+{
+    if(rxLen != 6)
+        return UsbCommandErrorCode::BadDataLenght;
+
+    uint32_t sensorIdentifier = bytesToUint32(&rxBuf[2]);
+    sensor::Sensor* sensor = nullptr;
+    int result = knownSensors.valueByExpression([](sensor::Sensor& sensor, void* arg)->int {
+        if(sensor.sensorInfo.identifier == *reinterpret_cast<uint32_t*>(arg))
+            return 0;
+        return -1;
+    }, sensor, &sensorIdentifier);
+
+    if(result == -1)
+        return UsbCommandErrorCode::SensorNotKnown;
+
+    int dataInBuffer = sensor->sensorData.getDataCount();
+
+    if(dataInBuffer == -1)
+        return UsbCommandErrorCode::SensorNoDataAvailable;
+
+    sensor::SensorData sensorData;
+    for(int i = 0; i < dataInBuffer; i++)
+    {
+        sensor->sensorData.popData(sensorData);
+        sensor->sensorData.pushData(sensorData);
+    }
+
+    valueToBytes(sensorData.recvTime, &txBuf[0]);
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        txBuf[8 + i] = sensorData.packet.raw[i];
+    }
+
+    txLen = 32 + 8;
+
+    return UsbCommandErrorCode::NoError;
+}
 
 UsbCommandErrorCode processUsbCommandGetData(const uint8_t* rxBuf, uint16_t rxLen, uint8_t* txBuf, uint16_t& txLen) 
 {
@@ -223,6 +290,9 @@ uint8_t processUsbCommands(const uint8_t* rxBuf, uint16_t rxLen, uint8_t* txBuf,
     case UsbCommand::GetSensorInfo:
         errorCode = processUsbCommandGetSensorInfo(rxBuf, rxLen, txBuf, txLen);
         break;
+    case UsbCommand::GetSensorCalibData:
+        errorCode = GetSensorCalibData(rxBuf, rxLen, txBuf, txLen);
+        break;
     case UsbCommand::GetSensorDataCount:
         errorCode = processUsbCommandGetSensorDataCount(rxBuf, rxLen, txBuf, txLen);
         break;
@@ -231,6 +301,9 @@ uint8_t processUsbCommands(const uint8_t* rxBuf, uint16_t rxLen, uint8_t* txBuf,
         break;
     case UsbCommand::GetData:
         errorCode = processUsbCommandGetData(rxBuf, rxLen, txBuf, txLen);
+        break;
+    case UsbCommand::GetSensorLastData:
+        errorCode = processUsbCommandGetLastSensorData(rxBuf, rxLen, txBuf, txLen);
         break;
     default:
         return getUsbResponseCommand(usbCommand, UsbErrorCode::BadCommandError);

@@ -9,7 +9,7 @@ namespace sensor
     enum class SensorType: uint8_t
     {
         Test = 0,
-        SimpleWheatherStation = 1,
+        SimpleWeatherStation = 88,
         Unknown = 0xff
     };
 

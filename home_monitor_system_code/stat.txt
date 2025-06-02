@@ -1,0 +1,15 @@
+With IRQ
+RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+Flash: [========= ]  91.1% (used 1866 bytes from 2048 bytes)
+
+diff: 68 bytes
+
+Without IRQ
+RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+Flash: [========= ]  87.8% (used 1798 bytes from 2048 bytes)
+
+diff: 30 bytes 
+
+With IRQ which only change state
+RAM:   [===       ]  32.8% (used 42 bytes from 128 bytes)
+Flash: [========= ]  89.3% (used 1828 bytes from 2048 bytes)
