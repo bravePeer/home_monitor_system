@@ -74,19 +74,25 @@ class MonitorStationDevice(metaclass=MonitorStationDeviceMeta):
             return
 
         logger.info("Connecting to device...", self.__class__.__name__)
-        # dev = usb.core.find(idVendor=self.id_vendor, idProduct=self.id_product)
-        libusb1_backend = libusb1_backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
-        self.device = usb.core.find(idVendor=0x0000, idProduct=0x0001, backend=libusb1_backend)
-
+        
+        backend = None
+        try:
+            backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
+        except:
+            pass
+        self.device = usb.core.find(idVendor=0x0000, idProduct=0x0001, backend=backend)
         if self.device is None:
             logger.error("Device not found!", self.__class__.__name__)
             self.is_connected = False
             return
-
-        if self.configure_endpoints(self.device) is False:
-            self.is_connected = False
-            return
-
+        
+        try:
+            if self.configure_endpoints(self.device) is False:
+                self.is_connected = False
+                return
+        except Exception as e:
+            logger.error(f"Can not connect to device! {e}")
+            raise e
         self.is_connected = True
         logger.info("Connected!", self.__class__.__name__)
 

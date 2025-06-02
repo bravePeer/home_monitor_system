@@ -84,7 +84,7 @@ class DatabaseManager(metaclass=DatabaseManagerMeta):
 
         cur = self.db.cursor()
         command = f"""INSERT INTO {table_name} ({columns}) VALUES ({values})"""
-        print(command)
+        logger.info(f"Command: {command}", self.__class__.__name__)
         cur.execute(command)
 
         cur.close()

@@ -6,7 +6,7 @@ services:
     image: home_monitor_system_app:latest
     container_name: home_monitor_system_app
     devices:
-      - "/dev/bus/usb/001/003:/dev/bus/usb/001/003"
+      - "${HOME_MONITOR_SYSTEM_DEVICE}:${HOME_MONITOR_SYSTEM_DEVICE}"
     volumes:
       - ".log/:/.log/"
     networks:
@@ -15,7 +15,7 @@ services:
       - home_monitor_system_db
 
   home_monitor_system_db:
-    image: mysql
+    image: mysql:latest
     container_name: home_monitor_system_db
     environment:
       MYSQL_ROOT_PASSWORD: password

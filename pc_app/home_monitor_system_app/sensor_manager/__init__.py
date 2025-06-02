@@ -1,0 +1,1 @@
+all = ["sensor_manager"]

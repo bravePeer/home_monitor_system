@@ -16,7 +16,8 @@ dotenv.load_dotenv()
 
 ID_VENDOR = int(os.getenv("ID_VENDOR"), base=16)
 ID_PRODUCT = int(os.getenv("ID_PRODUCT"), base=16)
-
+LOG_PATH0 = os.getenv("LOG_PATH0")
+LOG_PATH1 = os.getenv("LOG_PATH1")
 
 @click.group()
 def cli():
@@ -209,7 +210,7 @@ cli.add_command(read_sensor_last_data)
 
 
 if __name__ == "__main__":
-    logger.init()
+    logger.init(LOG_PATH0, LOG_PATH1)
     # try:
     #     logger.info("Try to automatically connect to device")
     #     device = MonitorStationDevice()

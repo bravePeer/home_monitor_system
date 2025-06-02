@@ -28,7 +28,7 @@ class Logger(metaclass=LoggerMeta):
         self.silent = False
         self.lines = 0
 
-    def init(self, path0: str = LOG_PATH0, path1: str = LOG_PATH1):
+    def init(self, path0: str, path1: str):
         if self.initialized is True:
             return
         self.path0 = Path(path0)

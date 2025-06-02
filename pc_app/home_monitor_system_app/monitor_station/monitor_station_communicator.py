@@ -70,8 +70,8 @@ class MonitorStationCommunicator:
 
         return recv[2:]
 
-    def read_available_measurement(self, wheather_station_id: int | None = None):
-        pass
+    # def read_available_measurement(self, wheather_station_id: int | None = None):
+    #     pass
 
     # def read_sensor_data(self, sensor: Sensor):
     #     packet = bytearray(UsbCommand.GetSensorDataCount, 0)
@@ -80,6 +80,32 @@ class MonitorStationCommunicator:
     #     # recv = self.indoor_outdoor_receiver.write_read(packet)
         
     #     UsbCommand.GetSensorData
+
+    def read_sensor_available_data_count(self, identifier: int) -> int:
+        packet = bytearray()
+        packet.append(UsbCommand.GetSensorDataCount.value)
+        packet.append(0)
+        packet += int_to_bytes(identifier)
+        packet[1] = len(packet) - 2
+
+        recv = MonitorStationDevice().write_read(packet)
+
+        return int.from_bytes(recv[2:6], "little")
+
+    def read_sensor_available_data(self, identifier: int, count: int) -> list:
+        data = []
+        for _ in range(count):
+            packet = bytearray()
+            packet.append(UsbCommand.GetSensorData.value)
+            packet.append(0)
+            packet += int_to_bytes(identifier)
+            packet[1] = len(packet) - 2
+
+            recv = MonitorStationDevice().write_read(packet)
+            data.append(recv[2:])
+
+        return data
+
 
     def read_log(self) -> None:
         """Read logs from device and log to screen and to file"""

@@ -8,4 +8,5 @@
 *.bkp
 *.code-workspace
 **/*-backups
-**/.env
+**/.env*
+**/*.pid

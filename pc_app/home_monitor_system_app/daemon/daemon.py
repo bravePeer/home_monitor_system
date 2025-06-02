@@ -11,7 +11,8 @@ import dotenv
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from logger import logger
 from daemon_status import DaemonStatus
-from monitor_station import monitor_station_communicator
+# from monitor_station import monitor_station_communicator
+from sensor_manager.sensor_manager import SensorManager
 
 from database_manager import database_manager, database_connector
 
@@ -37,18 +38,16 @@ class Daemon:
             self.soc.bind((DAEMON_HOST, DAEMON_PORT))
             self.soc.listen(1)
             self.soc.setblocking(False)
-        except Exception as e:
+        except:
             logger.error("Cannot bind address! Stopping...")
             return
         logger.info(f"Daemon started! PID: {str(os.getpid())}", self.__class__.__name__)
         self.status = DaemonStatus.Running
 
         try:
-            time.sleep(60)
             self.db = database_connector.connect_to_database()
             self.dm = database_manager.DatabaseManager(self.db)
         except:
-            logger.error("Error during connecting to database!")
             self.status = DaemonStatus.Error
 
     def process_command(self, command: str):
@@ -79,11 +78,24 @@ class Daemon:
         
         if time.time() - self.time_now < self.config.reading_interval:
             return
-            
-        monitor_station_communicator.MonitorStationCommunicator().read_sensors_count()
-        # Read devices measurements
-        # Write to db
         
+        try:
+            # Read devices measurements
+            new_sensors_ids = SensorManager().get_not_known_sensors_identifiers()
+            SensorManager().get_new_sensors(new_sensors_ids)
+            SensorManager().update_sensor_data()
+
+            # Write to db
+            for sensor in SensorManager().sensors:
+                for _ in range(len(sensor.data)):
+                    database_manager.DatabaseManager().archive_data(sensor)
+                    sensor.dequeue_data()
+                
+        except Exception as e:
+            logger.error(e.__str__())
+            raise e
+        
+        # Sleep
         self.time_now = time.time()
             
 
@@ -136,4 +148,5 @@ if __name__ == "__main__":
     try:
         start_daemon()
     except Exception as e:
-        logger.error(e)
+        logger.error(e.__str__())
+        raise e
