@@ -27,7 +27,7 @@ void processSensorSends()
         return;
     lastSendTime = getTime();
     
-    sleep_ms(50);
+    sleep_ms(2000);
     
     sensorPacket::SensorPacketWithLen packetToSend; 
     sendPacketRingBuffer.popData(packetToSend);
@@ -172,7 +172,7 @@ void processIrqStateNRF24()
         }
 
         transmitSPI(dataToProcess, dataToProcess, nrf24::WriteCmd(nrf24::Commands::ReadRxPayload), dataCoutToProcess, NRF24_CSN_PORT, NRF24_CSN_PIN);
-        //blinkLed(LedState::OnGreen, 3);
+        blinkLed(LedState::OnGreen, 2);
         
         if(processSensorPayload(dataToProcess, dataCoutToProcess) == -1)
             setLedState(LedState::OnRed);
@@ -182,8 +182,8 @@ void processIrqStateNRF24()
     {
         isSending = 0;
         // Send data successfull
-        //blinkLed(LedState::OnGreen, 5);
         nrf24::setToPRX();
+        blinkLed(LedState::OnGreen, 3);
     }
 
     if(status & nrf24::SetRegister(nrf24::Reg::Status::max_rt))
