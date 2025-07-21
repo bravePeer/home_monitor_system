@@ -206,4 +206,15 @@ namespace nrf24
         // transmitSPI(nullptr, nullptr, nrf24::WriteCmd(nrf24::Commands::FlushRx), 0, NRF24_CSN_PORT, NRF24_CSN_PIN);
         transmitSpiNrf24(nullptr, nullptr, nrf24::WriteCmd(nrf24::Commands::FlushRx), 0);
     }
+
+    /// @brief Check is nrf24 connected
+    /// @return on success 1, otherwise 0
+    inline int8_t isConnected()
+    {
+        // Value 0x0e is default value after reset in status register
+        if(nrf24::getStatusReg() == 0x0e)
+            return 1;
+
+        return 0;
+    }
 }
