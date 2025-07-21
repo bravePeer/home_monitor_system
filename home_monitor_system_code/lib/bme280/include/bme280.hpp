@@ -48,141 +48,138 @@ namespace bme280
         CalibP9LSB = 0x9E, 
         CalibP9MSB = 0x9F, 
         CalibReservedLSB = 0xA0,
-        CalibReservedMSB = 0xA1,
+        CalibH1 = 0xA1,
+
+        CalibH2LSB = 0xE1,
+        CalibH2MSB = 0xE2,
+        CalibH3 = 0xE3,
+        CalibH4LSB = 0xE4,
+        // Only <3:0>
+        CalibH4MSB = 0xE5,
+        // Only <7:4> bits
+        CalibH5LSB = 0xE5,
+        CalibH5MSB = 0xE6,
+        CalibH6 = 0xE7
     };
 
-    enum class ControlOversamplingTemperature
-    {
-        Skipped         = 0b000,
-        OversamplingX1  = 0b001,
-        OversamplingX2  = 0b010,
-        OversamplingX4  = 0b011,
-        OversamplingX8  = 0b100,
-        OversamplingX16 = 0b101,
-        // OversamplingX16 = 0b110,
-        // OversamplingX16 = 0b111,
-    };
 
-    enum class ControlOversamplingPressure
-    {
-        Skipped         = 0b000,
-        OversamplingX1  = 0b001,
-        OversamplingX2  = 0b010,
-        OversamplingX4  = 0b011,
-        OversamplingX8  = 0b100,
-        OversamplingX16 = 0b101,
-        // OversamplingX16 = 0b110,
-        // OversamplingX16 = 0b111,
-    };
-    
-    enum class ControlMode
-    {
-        Sleep  = 0b00,
-        Forced = 0b01,
-        // Forced = 0b10,
-        Normal = 0b11
-    };
 
-    #pragma pack(push, 1)
-    struct ControlMeasurements
-    {
-        ControlOversamplingTemperature ctrlTemperature : 3;
-        ControlOversamplingPressure ctrlPressure : 3;
-        ControlMode mode : 2;
-    };
-    #pragma pack(pop)
-    ControlMeasurements lastControlMeasurements;
+    // #pragma pack(push, 1)
+    // struct ControlMeasurements
+    // {
+    //     ControlOversamplingTemperature ctrlTemperature : 3;
+    //     ControlOversamplingPressure ctrlPressure : 3;
+    //     ControlMode mode : 2;
+    // };
+    // #pragma pack(pop)
+    // ControlMeasurements lastControlMeasurements;
 
     constexpr uint8_t measuringMask = 0x08;
     constexpr uint8_t imUpdateMask = 0x01;
     constexpr uint8_t busyMask = measuringMask | imUpdateMask;
 
-    constexpr uint8_t commandWriteBytes(MemoryMap address)
-    {
-        return static_cast<uint8_t>(address) & 0x7f;
-    }
+    constexpr uint8_t idValue = 0x60;
+    constexpr uint8_t resetValue = 0xB6;
 
-    constexpr uint8_t commandReadBytes(MemoryMap address)
-    {
-        return static_cast<uint8_t>(address) | 0x80;
-    }
 
-    constexpr uint8_t toByte(const ControlMeasurements& ctrlMeas)
-    {
-        return static_cast<uint8_t>(
-            static_cast<uint8_t>(ctrlMeas.ctrlTemperature) << 5 |
-            static_cast<uint8_t>(ctrlMeas.ctrlPressure) << 2 | 
-            static_cast<uint8_t>(ctrlMeas.mode)
-        );
-    }
+    // constexpr uint8_t commandWriteBytes(MemoryMap address)
+    // {
+    //     return static_cast<uint8_t>(address) & 0x7f;
+    // }
 
-    /// @brief 
-    /// @param idBuffer pointer to one byte buffer where id will be stored
-    inline void readId(uint8_t* idBuffer)
-    {
-        transmitSpiBme280(idBuffer, idBuffer, commandReadBytes(MemoryMap::Id), 1);
-    }
+    // constexpr uint8_t commandReadBytes(MemoryMap address)
+    // {
+    //     return static_cast<uint8_t>(address) | 0x80;
+    // }
 
-    inline void softReset()
-    {
-        uint8_t data = 0xe0;
-        transmitSpiBme280(&data, &data, commandReadBytes(MemoryMap::Reset), 1);
-    }
+    // constexpr uint8_t toByte(const ControlMeasurements& ctrlMeas)
+    // {
+    //     return static_cast<uint8_t>(
+    //         static_cast<uint8_t>(ctrlMeas.ctrlTemperature) << 5 |
+    //         static_cast<uint8_t>(ctrlMeas.ctrlPressure) << 2 | 
+    //         static_cast<uint8_t>(ctrlMeas.mode)
+    //     );
+    // }
 
-    inline void writeControlMeasurements(const ControlMeasurements ctrlMeas)
-    {
-        uint8_t data = toByte(ctrlMeas);
-        lastControlMeasurements = ctrlMeas;
-        transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::CtrlMeas), 1);
-    }
+    // /// @brief 
+    // /// @param idBuffer pointer to one byte buffer where id will be stored
+    // inline void readId(uint8_t* idBuffer)
+    // {
+    //     transmitSpiBme280(idBuffer, idBuffer, commandReadBytes(MemoryMap::Id), 1);
+    // }
+    //
+    //
+    // inline void softReset()
+    // {
+    //     uint8_t data = 0xe0;
+    //     transmitSpiBme280(&data, &data, commandReadBytes(MemoryMap::Reset), 1);
+    // }
+
+    // inline void writeControlMeasurements(const ControlMeasurements ctrlMeas)
+    // {
+    //     uint8_t data = toByte(ctrlMeas);
+    //     lastControlMeasurements = ctrlMeas;
+    //     transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::CtrlMeas), 1);
+    // }
 
     /// @brief Reads the pressure and temperature data from the BME280 sensor.
     /// @param data Pointer to a buffer where the sensor data will be stored. 
     ///             The buffer must be at least 6 bytes long.
     /// @tparam N Size of the data buffer, must be at least 6 bytes.
-    template <size_t N>
-    void readAllDataBmp280(uint8_t (&data)[N])
-    {
-        static_assert(N >= 6, "Buffer size must be at least 6 bytes to read pressure and temperature data");
-        transmitSpiBme280(data, data, commandReadBytes(MemoryMap::PressMsb), 6);
-    }
+    // template <size_t N>
+    // inline void readAllDataBmp280(uint8_t (&data)[N])
+    // {
+    //     static_assert(N >= 6, "Buffer size must be at least 6 bytes to read pressure and temperature data");
+    //     transmitSpiBme280(data, data, commandReadBytes(MemoryMap::PressMsb), 6);
+    // }
 
-    inline uint8_t isMeasuring()
-    {
-        uint8_t data = 0;
-        transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
-        return data & measuringMask;
-    }
+    // inline uint8_t isMeasuring()
+    // {
+    //     uint8_t data = 0;
+    //     transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
+    //     return data & measuringMask;
+    // }
 
-    inline uint8_t isImageUpdating()
-    {
-        uint8_t data = 0;
-        transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
-        return data & imUpdateMask;
-    }
+    // inline uint8_t isImageUpdating()
+    // {
+    //     uint8_t data = 0;
+    //     transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
+    //     return data & imUpdateMask;
+    // }
 
-    inline uint8_t isBusy()
-    {
-        uint8_t data = 0;
-        transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
-        return data & busyMask;
-    }
+    // inline uint8_t isBusy()
+    // {
+    //     uint8_t data = 0;
+    //     transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::Status), 1);
+    //     return data & busyMask;
+    // }
 
-    inline void startForceMeasurement()
-    {
-        lastControlMeasurements.mode = ControlMode::Forced;
-        uint8_t data = toByte(lastControlMeasurements);
-        transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::CtrlMeas), 1);
-    }
+    // inline void startForceMeasurement()
+    // {
+    //     lastControlMeasurements.mode = ControlMode::Forced;
+    //     uint8_t data = toByte(lastControlMeasurements);
+    //     transmitSpiBme280(&data, &data, commandWriteBytes(MemoryMap::CtrlMeas), 1);
+    // }
 
     /// @brief Reads the calibration data from the BME280 sensor.
     /// @param data Pointer to a buffer where the calibration data will be stored. 
     ///             The buffer must be at least 26 bytes long.
     /// @tparam N Size of the data buffer, must be at least 6 bytes.
-    template <size_t N>
-    void readCalibrationData(uint8_t (&data)[N])
-    {
-        static_assert(N >= 26, "Buffer size must be at least 6 bytes to read calibration data");
-        transmitSpiBme280(data, data, commandReadBytes(MemoryMap::CalibT1LSB), 26);
-    }
+    // template <size_t N>
+    // void readCalibrationData(uint8_t (&data)[N])
+    // {
+    //     static_assert(N >= 26, "Buffer size must be at least 6 bytes to read calibration data");
+    //     transmitSpiBme280(data, data, commandReadBytes(MemoryMap::CalibT1LSB), 26);
+    // }
+
+    /// @brief Check is BME280 connected
+    /// @return on success 0, otherwise -1
+    // inline int8_t isConnected()
+    // {
+    //     uint8_t data = 0;
+    //     transmitSpiBme280(&data, &data, commandReadBytes(MemoryMap::Id), 1);
+    //     if(data == 0x60)
+    //         return 0;
+    //     return -1;
+    // }
 }
