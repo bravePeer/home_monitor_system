@@ -11,7 +11,15 @@ extern "C"
 // <hardware version 4B> 
 // <software version 4B>
 
-uint8_t readByteEEPROM(uint8_t address)
+enum class EepromMap: uint8_t
+{
+    RxAddress = 0,
+    Identifier = 5,
+    SoftwareVersion = 9,
+    HardwareVersion = 13,
+};
+
+inline uint8_t readByteEEPROM(uint8_t address)
 {
     while(EECR & (1 << EEPE))
     { /* Poll EEPE bit */ }
@@ -20,7 +28,7 @@ uint8_t readByteEEPROM(uint8_t address)
     return EEDR;
 }
 
-void readBytesEEPORM(uint8_t address, uint8_t* dataPtr, uint8_t dataLen)
+inline void readBytesEEPORM(uint8_t address, uint8_t* dataPtr, uint8_t dataLen)
 {
     while(dataLen--)
     {
@@ -34,7 +42,12 @@ void readBytesEEPORM(uint8_t address, uint8_t* dataPtr, uint8_t dataLen)
     }
 }
 
-uint32_t readEEPROM(uint8_t address)
+inline void readBytesEEPORM(EepromMap address, uint8_t* dataPtr, uint8_t dataLen)
+{
+    readBytesEEPORM(static_cast<uint8_t>(address), dataPtr, dataLen);
+}
+
+inline uint32_t readEEPROM(uint8_t address)
 {
     // uint32_t ret = 0;
     // ret = readByteEEPROM(address);

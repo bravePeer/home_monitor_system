@@ -22,33 +22,39 @@ void intSPI(uint_fast16_t baud)
     /* Set baud rate. */
     /* IMPORTANT: The Baud Rate must be set after the transmitter is enabled*/
     UBRRL = static_cast<uint8_t>(baud);
-    UBRRH = static_cast<uint8_t>(baud>>8);
+    UBRRH = static_cast<uint8_t>(baud >> 8);
 }
 
 uint8_t transmitLowLevelSPI(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint8_t cmd, const uint8_t len)
 {
-    while (!( UCSRA & (1<<UDRE)));/* Wait for empty transmit buffer */
+    while (!( UCSRA & (1<<UDRE)))
+    { /* Wait for empty transmit buffer */ }
     UDR = cmd; // Wpisanie wartości do bufora
-    while (!(UCSRA & (1<<RXC))); /* Wait for data to be received */
+    while (!(UCSRA & (1<<RXC)))
+    { /* Wait for data to be received */ } 
     uint8_t statusReg = UDR;
 
     for (uint8_t i = 0; i < len; i++)
     {
-        while ( !( UCSRA & (1<<UDRE)) );/* Wait for empty transmit buffer */
+        while ( !( UCSRA & (1<<UDRE)) )
+        { /* Wait for empty transmit buffer */ }
         if(sendBuf == nullptr)
             UDR = 0xFF;
         else
             UDR = sendBuf[i];
-        while ( !(UCSRA & (1<<RXC)) ); /* Wait for data to be received */
-        if(receiveBuf == nullptr)
-        {
-            uint8_t d = UDR;
-        }
-        else
+        while ( !(UCSRA & (1<<RXC)) )
+        { /* Wait for data to be received */ }
+        // if(receiveBuf == nullptr)
+        // {
+        //     uint8_t d = UDR;
+        // }
+        // else
+        if(receiveBuf != nullptr)
             receiveBuf[i] = UDR;
     }
 
-    while(!(UCSRA &(1<<TXC))); // Wait for end transmission
+    while(!(UCSRA &(1<<TXC)))
+    { /* Wait for end transmission */ } 
     
     UCSRA |= (1<<TXC);
     return statusReg;

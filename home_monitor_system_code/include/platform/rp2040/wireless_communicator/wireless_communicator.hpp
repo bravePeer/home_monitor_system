@@ -1,8 +1,9 @@
 #pragma once
 #if defined(WEATHER_RECEIVER)
 #include <stdint.h>
-#include "sensor/sensor_packet.hpp"
-#include "sensor/sensor_data.hpp"
+#include "packet/packet.hpp"
+#include "packet/packetstr.hpp"
+#include "radio/sensor_data.hpp"
 #include "utilities/ring_buffer.hpp"
 #include "utilities/list.hpp"
 

@@ -1,8 +1,22 @@
 #pragma once
-#include <stdint.h>
+#if __has_include(<cstdint>)
+    #include <cstdint>
+#else
+    #include <stdint.h>
+#endif
 
 namespace sensorPacket
 {
+    /// Packet structure: <Header> <CRC> <Data up to 62 bytes>
+    ///
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
+    ///
+    /// CRC is sum of Header and Data bytes
+    ///
+
     /// @brief Possible directions of packet
     /// 
     ///  - Request (0b00) Receiver sends data (request packet) to Sensor
@@ -21,42 +35,56 @@ namespace sensorPacket
 
     enum class PacketType : uint8_t
     {
-        Test        = 0b00000,
-        SensorInfo  = 0b00001,
-        SensorCalibData = 0b00010,
-        SensorData  = 0b00011,
+        Test             = 0b00000,
+        SensorInfo       = 0b00001,
+        SensorCalibData0 = 0b00010,
+        SensorCalibData1 = 0b00011,
+        
+        SensorData0      = 0b10000,
+        SensorData1      = 0b10001,
     };
 
     enum class PacketError : uint8_t
     {
         NoError = 0,
-        Error = 1
+        Error   = 1
     };
 
     #pragma pack(push, 1)
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
     struct Header
     {
+        // uint8_t headerRaw;
         PacketDirection direction : 2;
-        uint8_t errorFlag : 1;
+        PacketError errorFlag : 1;
         PacketType type : 5;
- 
-        // operator uint8_t() const
-        // {
-        //     return (direction << 6) | (errorFlag << 5) | type;
-        // }
     };
     #pragma pack(pop)
 
-    constexpr uint8_t toHeader(PacketDirection direction, PacketError errorFlag, PacketType packetType)
-    {
-        return static_cast<uint8_t>(
-            static_cast<uint8_t>(direction) << 6 |
-            static_cast<uint8_t>(errorFlag) << 5 |
-            static_cast<uint8_t>(packetType)
-        );
-    }
+    // constexpr uint8_t PacketTypeMask = 0xf8;
+    // constexpr uint8_t PacketErrorMask = 0x04;
+    // constexpr uint8_t PacketDirectionMask = 0x03;
 
+    // inline Header createHeader(PacketDirection dir, PacketError err, PacketType typ)
+    // {
+    //     Header header;
+    //     header.headerRaw = (((static_cast<uint8_t>(typ) << 1) | static_cast<uint8_t>(err)) << 2) | static_cast<uint8_t>(dir);
+    // }
+    
+    
     #pragma pack(push, 1)
+    /// Packet structure: <Header> <CRC> <Data up to 62 bytes>
+    ///
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
+    ///
+    /// CRC is sum of Header and Data bytes
+    ///
     union SensorPacket
     {
         uint8_t raw[32];
@@ -181,4 +209,3 @@ namespace sensorPacket
         return 0;
     }
 }
-

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "rp2040/usb/usb_custom.h"
 #include "rp2040/usb/usb_commands.hpp"
+#include "rp2040/logger/logger.hpp"
 
 #define usb_hw_set ((usb_hw_t *)hw_set_alias_untyped(usb_hw))
 #define usb_hw_clear ((usb_hw_t *)hw_clear_alias_untyped(usb_hw))
@@ -524,6 +525,8 @@ void ep2_in_handler(__unused uint8_t *buf, uint16_t len) {
  *
  */
 void usb_device_init() {
+    log("USB", LogLevel::Info, "Initializing USB...");
+
     // Reset usb controller
     reset_unreset_block_num_wait_blocking(RESET_USBCTRL);
 
@@ -566,5 +569,6 @@ void usb_device_init() {
 
     // Get ready to rx from host
     usb_start_transfer(usb_get_endpoint_configuration(EP1_OUT_ADDR), nullptr, 64);
+    log("USB", LogLevel::Info, "Initializied!");
 }
 #endif

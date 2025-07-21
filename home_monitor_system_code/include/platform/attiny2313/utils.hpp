@@ -3,7 +3,7 @@ extern "C"
 {
     #include "util/delay.h"
 }
-#include <attiny2313/config.hpp>
+#include "config.hpp"
 #include "spi.hpp"
 
 [[gnu::always_inline]] inline void eDELAY_MS(uint32_t val)

@@ -2,7 +2,7 @@
 #if defined(RP2040)
 #include <stdint.h>
 #include "rp2040/wireless_communicator/wireless_communicator.hpp"
-#include "sensor/sensor_data.hpp"
+#include "radio/sensor_data.hpp"
 
 /// @brief This function is used to describe args
 /// @param rxBuf Raw rx buffer, includes command and length bytes
@@ -203,7 +203,7 @@ UsbCommandErrorCode processUsbCommandGetSensorData(const uint8_t* rxBuf, uint16_
     if(result == -1)
         return UsbCommandErrorCode::SensorNotKnown;
 
-    sensor::SensorData sensorData;
+    sensor::SensorData0 sensorData;
     result = sensor->sensorData.popData(sensorData);
 
     if(result == -1)
@@ -241,7 +241,7 @@ UsbCommandErrorCode processUsbCommandGetLastSensorData(const uint8_t* rxBuf, uin
     if(dataInBuffer == -1)
         return UsbCommandErrorCode::SensorNoDataAvailable;
 
-    sensor::SensorData sensorData;
+    sensor::SensorData0 sensorData;
     for(int i = 0; i < dataInBuffer; i++)
     {
         sensor->sensorData.popData(sensorData);

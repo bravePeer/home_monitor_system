@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
-#include "attiny2313/config.hpp"
+
+#include "config.hpp"
 
 // LED Status
 // Initializing -> R
@@ -42,8 +43,13 @@ enum class BlinkCount: uint8_t
     Initialized = 5,
     Send = 3,
     Received = 2,
-    WrongCRC = 5,
-    MaxRetr = 3
+    Some = 1,
+
+    // Errors count
+    Nrf24Error = 2,
+    BmeError = 3,
+    MaxRetr = 4,
+    WrongCRC = 5
 };
 
 inline void blinkLed(const LedColor led, const BlinkCount times)
@@ -57,6 +63,3 @@ inline void blinkLed(const LedColor led, const BlinkCount times)
         eDELAY_MS(100);
     }
 }
-
-
-

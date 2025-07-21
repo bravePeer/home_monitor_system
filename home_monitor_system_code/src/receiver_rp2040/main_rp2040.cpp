@@ -10,6 +10,7 @@
 #include "rp2040/wireless_communicator/wireless_communicator.hpp"
 
 #include "rp2040/led.hpp"
+#include "rp2040/logger/logger.hpp"
 
 #define ADDR(val) (*(volatile uint32_t *)(val))
 
@@ -65,8 +66,9 @@ int main()
 
     setLedState(LedState::OnRed);
 
-    usb_device_init();
+    initSerialLogger();
 
+    usb_device_init();
 
     intSPI(5000000);
     gpio_set_irq_callback(gpioCallback);
@@ -78,8 +80,8 @@ int main()
     blinkLed(LedState::OnGreen, 2, 500);
 
     // bool receivedData = false;
-    int i =0;
-    
+    log("Main", LogLevel::Info, "Starting main loop...");
+
     while (true) {
         // if(receivedData)
         // {
@@ -89,12 +91,11 @@ int main()
         
         if(IrqStateNRF24)
         {
-           IrqStateNRF24 = false; 
-           processIrqStateNRF24();
+            processIrqStateNRF24();
+            IrqStateNRF24 = false; 
         }
         // DELAY_MS(100);
         processSensorSends();
     }
-
 }
 #endif

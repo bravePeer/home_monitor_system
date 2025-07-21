@@ -1,7 +1,7 @@
 #if defined(WEATHER_RECEIVER)
 #pragma once
 #include <stdint.h>
-#include "sensor/sensor_packet.hpp"
+#include "packet/packet.hpp"
 #include "utilities/ring_buffer.hpp"
 
 namespace sensor
@@ -13,7 +13,7 @@ namespace sensor
         Unknown = 0xff
     };
 
-    struct SensorData
+    struct SensorData0
     {
         sensorPacket::SensorPacket packet;
 
@@ -37,7 +37,7 @@ namespace sensor
     {
         SensorInfo sensorInfo{};
 
-        RingBuffer<SensorData, 10> sensorData;
+        RingBuffer<SensorData0, 10> sensorData;
     };
 }
 

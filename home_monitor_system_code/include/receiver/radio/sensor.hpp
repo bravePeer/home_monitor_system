@@ -1,8 +1,8 @@
 #if defined(WEATHER_RECEIVER)
 #pragma once
 #include <stdint.h>
-#include "sensor/sensor_packet.hpp"
-#include "sensor/sensor_data.hpp"
+#include "packet/packet.hpp"
+#include "radio/sensor_data.hpp"
 #include "utilities/ring_buffer.hpp"
 #include "utilities/list.hpp"
 #include "utilities.hpp"
@@ -60,8 +60,8 @@ namespace sensor
             ptrSensor->sensorInfo.initializationTime = recvTime;
             break;
 
-        case sensorPacket::PacketType::SensorData:
-            SensorData data {
+        case sensorPacket::PacketType::SensorData0:
+            SensorData0 data {
                 .packet = recv,
                 .recvTime = recvTime
             };
