@@ -15,18 +15,25 @@ namespace sensorPacket
     {
         switch (typ)
         {
-        case PacketType::Test:
-            return "Test";
+        case PacketType::ResponseNOK:
+            return "ResponseNOK";
+        case PacketType::ResponseOK:
+            return "ResponseOK";
+
+        case PacketType::CmdWorkDone:
+            return "CmdWorkDone";
+
+        case PacketType::SensorData0:
+            return "SensorData0";
+        case PacketType::SensorData1:
+            return "SensorData1";
+        
         case PacketType::SensorInfo:
             return "SensorInfo";
         case PacketType::SensorCalibData0:
             return "SensorCalibData0";
         case PacketType::SensorCalibData1:
             return "SensorCalibData1";
-        case PacketType::SensorData0:
-            return "SensorData0";
-        case PacketType::SensorData1:
-            return "SensorData1";
         }
         return "Unknown";
     }

@@ -19,7 +19,7 @@ namespace sensorPacket
 
     /// @brief Possible directions of packet
     /// 
-    ///  - Request (0b00) Receiver sends data (request packet) to Sensor
+    ///  - Request (0b01) Receiver sends data (request packet) to Sensor
     ///
     ///  - Response (0b10) Sensor answers to Receiver Request 
     ///
@@ -27,21 +27,36 @@ namespace sensorPacket
     ///
     enum class PacketDirection : uint8_t
     {
-        Request  = 0b00,
-        Reserved = 0b01,
+        Reserved = 0b00,
+        Request  = 0b01,
         Response = 0b10,
         Report   = 0b11,
     };
 
+    /// @brief Possible packet types
+    ///
+    /// - Cmd:                     0b01ccc
+    ///
+    /// - Sensor Data:             0b10nnn
+    ///
+    /// - Sensor Calibration Data: 0xb11nnn
+    /// 
+    /// @note ccc = command
+    /// @note nnn = packet id
+    ///
     enum class PacketType : uint8_t
     {
-        Test             = 0b00000,
-        SensorInfo       = 0b00001,
-        SensorCalibData0 = 0b00010,
-        SensorCalibData1 = 0b00011,
+        ResponseNOK      = 0b00000,
+        ResponseOK       = 0b00001,
         
-        SensorData0      = 0b10000,
-        SensorData1      = 0b10001,
+        CmdWorkDone      = 0b01000,
+        
+        SensorData0      = 0b10001,
+        SensorData1      = 0b10010,
+        
+        SensorInfo       = 0b11000,
+        SensorCalibData0 = 0b11001,
+        SensorCalibData1 = 0b11010,
     };
 
     enum class PacketError : uint8_t
@@ -50,6 +65,7 @@ namespace sensorPacket
         Error   = 1
     };
 
+
     #pragma pack(push, 1)
     /// Header: TTTT TEDD
     ///     T -> Packet type
@@ -57,22 +73,11 @@ namespace sensorPacket
     ///     D -> Packet direction
     struct Header
     {
-        // uint8_t headerRaw;
         PacketDirection direction : 2;
         PacketError errorFlag : 1;
         PacketType type : 5;
     };
     #pragma pack(pop)
-
-    // constexpr uint8_t PacketTypeMask = 0xf8;
-    // constexpr uint8_t PacketErrorMask = 0x04;
-    // constexpr uint8_t PacketDirectionMask = 0x03;
-
-    // inline Header createHeader(PacketDirection dir, PacketError err, PacketType typ)
-    // {
-    //     Header header;
-    //     header.headerRaw = (((static_cast<uint8_t>(typ) << 1) | static_cast<uint8_t>(err)) << 2) | static_cast<uint8_t>(dir);
-    // }
     
     
     #pragma pack(push, 1)
@@ -171,6 +176,18 @@ namespace sensorPacket
             };
             uint8_t calibData[26]; 
         } CalibData; // 32 bytes
+    
+        struct 
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+        } Ok; // 6 bytes
+        
     };
     #pragma pack(pop)
 
