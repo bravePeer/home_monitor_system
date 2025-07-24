@@ -17,6 +17,7 @@ extern "C"
 #include "platform/attiny2313/error_process.hpp"
 #include "sensor/battery_voltage.hpp"
 #include "sensor/bme_sensor.hpp"
+#include "sensor/work_done.hpp"
 // Attiny2313 -> sleep 18 uA
 
 uint8_t rxAddress[5]; // Read from EEPROM!
@@ -31,19 +32,12 @@ enum class State : uint8_t
     ProcessReceivedData,
     DoMeasurements,
     SendPacket,
-    ProcessIrq
+    ProcessIrq,
+    WorkDone
 };
 
 volatile State state;
-
-
-// void setDone()
-// {
-//     PORTD |= (1<<PD6);
-//     _delay_ms(1);
-//     PORTD &= ~(1<<PD6);
-//     _delay_ms(1);
-// }
+volatile uint8_t workDoneFlag = 0;
 
 void processIrq()
 {
@@ -62,7 +56,10 @@ void processIrq()
 
     if(status & nrf24::SetRegister(nrf24::Reg::Status::tx_ds))
     {
-        state = State::ToIdle;
+        if(workDoneFlag)
+            state = State::WorkDone;
+        else
+            state = State::ToIdle;
         blinkLed(LedColor::Green, BlinkCount::Send);
     }
 }
@@ -131,6 +128,11 @@ uint8_t processReceivedData()
         bme::BmeSelector<bmeType>::readCalibrationData1(packet.CalibData.calibData);
         packetSize = 32;
         break;
+    case sensorPacket::PacketType::CmdWorkDone:
+        packet.General.header.type = sensorPacket::PacketType::ResponseOK;
+        packetSize = 6;
+        workDoneFlag = 1;
+        break;
     default:
         packet.Info.header.errorFlag = sensorPacket::PacketError::Error;
         break;
@@ -166,7 +168,7 @@ int main()
 
 #if defined(NO_SLEEP_TIMER)
     state = State::Idle; // TODO In future auto measuring will be processing
-#elif
+#else
     state = State::DoMeasurements;
 #endif
 
@@ -197,11 +199,8 @@ int main()
             break;
         case State::DoMeasurements:
             for (size_t i = 0; i < 32; i++)
-            {
                 packet.raw[i] = 0;
-            }
             
-
             doMeasurements();
             bme::BmeSelector<bmeType>::readAllData(dataBuf);
             packet.Data.header.direction = sensorPacket::PacketDirection::Report;
@@ -250,6 +249,10 @@ int main()
             eDELAY_MS(10);
             nrf24::sendData(packet.raw, packetSize);
             state = State::Idle;
+            break;
+        case State::WorkDone:
+            indicateWorkDone();
+            setWorkDone();
             break;
         }
 
