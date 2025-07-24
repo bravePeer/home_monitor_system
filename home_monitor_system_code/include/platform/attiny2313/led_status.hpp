@@ -44,6 +44,7 @@ enum class BlinkCount: uint8_t
     Send = 3,
     Received = 2,
     Some = 1,
+    WorkDone = 10,
 
     // Errors count
     Nrf24Error = 2,

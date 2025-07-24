@@ -27,9 +27,9 @@ uint8_t transmitSpiNrf24(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint
 
 uint8_t transmitSpiBme280(const uint8_t* sendBuf, uint8_t* receiveBuf, const uint8_t cmd, const uint8_t len)
 {
-    *BME280_CSN_PORT &= (~(1<<BME280_CSN_PIN));
+    *BME_CSN_PORT &= (~(1<<BME_CSN_PIN));
     uint8_t ret = transmitLowLevelSPI(sendBuf, receiveBuf, cmd, len);
-    *BME280_CSN_PORT |= (1<<BME280_CSN_PIN);
+    *BME_CSN_PORT |= (1<<BME_CSN_PIN);
     return ret;
     // return transmitSPI(sendBuf, receiveBuf, cmd, len, NRF24_CSN_PORT, NRF24_CSN_PIN);
 }
