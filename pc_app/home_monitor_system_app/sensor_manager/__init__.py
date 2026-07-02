@@ -1,1 +1,0 @@
-all = ["sensor_manager"]

@@ -1,0 +1,251 @@
+#pragma once
+#if __has_include(<cstdint>)
+    #include <cstdint>
+#else
+    #include <stdint.h>
+#endif
+
+namespace sensorPacket
+{
+    /// Packet structure: <Header> <CRC> <Data up to 62 bytes>
+    ///
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
+    ///
+    /// CRC is sum of Header and Data bytes
+    ///
+
+    /// @brief Possible directions of packet
+    /// 
+    ///  - Request (0b01) Receiver sends data (request packet) to Sensor
+    ///
+    ///  - Response (0b10) Sensor answers to Receiver Request 
+    ///
+    ///  - Report (0b11) Sensor sends data to Receiver
+    ///
+    enum class PacketDirection : uint8_t
+    {
+        Reserved = 0b00,
+        Request  = 0b01,
+        Response = 0b10,
+        Report   = 0b11,
+    };
+
+    /// @brief Possible packet types
+    ///
+    /// - Cmd:                     0b01ccc
+    ///
+    /// - Sensor Data:             0b10nnn
+    ///
+    /// - Sensor Calibration Data: 0xb11nnn
+    /// 
+    /// @note ccc = command
+    /// @note nnn = packet id
+    ///
+    enum class PacketType : uint8_t
+    {
+        ResponseNOK      = 0b00000,
+        ResponseOK       = 0b00001,
+        
+        CmdWorkDone      = 0b01000,
+        
+        SensorData0      = 0b10000,
+        SensorData1      = 0b10001,
+        SensorData2      = 0b10010,
+        SensorData3      = 0b10011,
+        SensorData4      = 0b10100,
+        SensorData5      = 0b10101,
+        SensorData6      = 0b10110,
+        SensorData7      = 0b10111,
+        
+        SensorInfo       = 0b11000,
+        SensorCalibData0 = 0b11001,
+        SensorCalibData1 = 0b11010,
+        SensorCalibData2 = 0b11011,
+        SensorCalibData3 = 0b11100,
+        SensorCalibData4 = 0b11101,
+        SensorCalibData5 = 0b11110,
+        SensorCalibData6 = 0b11111,
+    };
+
+    enum class PacketError : uint8_t
+    {
+        NoError = 0,
+        Error   = 1
+    };
+
+
+    #pragma pack(push, 1)
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
+    struct Header
+    {
+        PacketDirection direction : 2;
+        PacketError errorFlag : 1;
+        PacketType type : 5;
+    };
+    #pragma pack(pop)
+    
+    
+    #pragma pack(push, 1)
+    /// Packet structure: <Header> <CRC> <Data up to 62 bytes>
+    ///
+    /// Header: TTTT TEDD
+    ///     T -> Packet type
+    ///     E -> Packet error flag
+    ///     D -> Packet direction
+    ///
+    /// CRC is sum of Header and Data bytes
+    ///
+    union SensorPacket
+    {
+        uint8_t raw[32];
+
+        struct 
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+            union
+            {
+                uint8_t rawData[26];
+            };
+        } General;
+
+        struct
+        {
+            Header header; 
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+            union
+            {
+                uint8_t temperatureRaw[4];
+                uint32_t temperatureValue;
+            };
+            union
+            {
+                uint8_t pressureRaw[4];
+                uint32_t pressureValue;
+            };
+            union
+            {
+                uint8_t humidityRaw[4];
+                uint32_t humidityValue;
+            };
+            union
+            {
+                uint8_t batteryVoltageRaw[4];
+                uint32_t batteryVoltageValue;
+            };
+        } Data; // 22 bytes
+
+        struct 
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+            union
+            {
+                uint8_t softwareVersionRaw[4];
+                uint32_t softwareVersionValue;
+            };
+            union
+            {
+                uint8_t hardwareVersionRaw[4];
+                uint32_t hardwareVersionValue;
+            };
+            union 
+            {
+                uint8_t sensorTypeRaw[4];
+                uint32_t sensorType;
+            };
+            uint8_t dataPacketsMaxCount;
+            uint8_t calibrationPacketsMaxCount;
+        } Info; // 20 bytes
+
+        struct
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+            uint8_t calibData[26]; 
+        } CalibData; // 32 bytes
+    
+        struct 
+        {
+            Header header;
+            uint8_t crc;
+            union
+            {
+                uint8_t identifierRaw[4];
+                uint32_t identifierValue;
+            };
+        } Ok; // 6 bytes
+        
+    };
+    #pragma pack(pop)
+
+    struct SensorPacketWithLen
+    {
+        SensorPacket packet;
+        /// @todo Removed default value 0
+        uint8_t size; 
+    };
+
+    inline int8_t generateCrc(uint8_t* payload, uint8_t len)
+    {
+        if(len < 3)
+            return -1;
+
+        uint8_t sum = payload[0];
+        for (uint8_t i = 2; i < len; i++)
+            sum += payload[i];
+        
+        payload[1] = sum;
+        return 0;
+    }
+
+    inline int8_t generateCrc(SensorPacketWithLen& packet)
+    {
+        return generateCrc(packet.packet.raw, packet.size);
+    }
+
+    /// @brief Calculating CRC is for now simple sum
+    /// @param payload Data to check
+    /// @param len Payload lenght
+    /// @return On success 0, otherwise -1
+    inline int8_t checkCrc(const uint8_t* payload, uint8_t len)
+    {
+        if(len < 3)
+            return -1;
+        
+        uint8_t sum = payload[0];
+        for (uint8_t i = 2; i < len; i++)
+            sum += payload[i];
+        
+        if(sum != payload[1])
+            return -1;
+
+        return 0;
+    }
+}

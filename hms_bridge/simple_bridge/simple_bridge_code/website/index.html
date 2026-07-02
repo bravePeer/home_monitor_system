@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<head>
+    <title>Home Monitor System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <script>
+        
+        class Sensor
+        {
+            constructor(jsonSensor)
+            {
+                this.niceName = "Sensor 0x" + jsonSensor.sensor_id;
+
+                this.sensor_type = jsonSensor.sensor_type;
+                this.sensor_id = jsonSensor.sensor_id;
+                this.dataPMaxCount = jsonSensor.dataPMaxCount;
+                this.calibPMaxCount = jsonSensor.calibPMaxCount;
+                this.hard_ver = jsonSensor.hard_ver;
+                this.soft_ver = jsonSensor.soft_ver;
+                this.initTime = jsonSensor.initTime;
+                this.radio_addr = jsonSensor.radio_addr;
+                this.data = null;
+            }
+
+            generateInfo()
+            {
+                let res = "";
+                res += '<div style="margin: 10px;display: inline-block;">';
+                res += this.niceName + '<br>';
+                
+                res += '<span id="data_' + this.sensor_id + '"> Data <br></span>';
+
+                res += "Type: " + Sensor.SensorTypeToStr(this.sensor_type) + "<br>";
+                res += "Type raw: " + " 0x" + this.sensor_type + "  <br>";
+                res += "Id: 0x" + this.sensor_id + "<br>";
+                // res += '<span id=""></span>'
+                res += "Details <br>";
+                res += "Max data packets count: " + this.dataPMaxCount + "<br>";
+                res += "Max calibration packets count: " + this.calibPMaxCount + "<br>";
+                res += "Hardware version: " + this.hard_ver + "<br>";
+                res += "Software version: " + this.soft_ver + "<br>";
+                res += "Init time: " + this.initTime + "<br>";
+                res += "Radio address: " + this.radio_addr + "<br>";
+                res += '<button onclick="console.log()">Get calibration data</button>';
+                res += "</div>";
+                return res;
+            }
+
+            async updateData()
+            {
+                const ret =  await fetch("/api/get_sensor_data", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({sensor_id: this.sensor_id})
+                });
+                if(!ret.ok)
+                    throw new Error("Server error");
+                const data_json = await ret.json();
+                this.data = data_json;
+                console.log(data_json);
+
+                let res = "";
+                if(this.data.temperature)
+                    res += "Temp: " + this.data.temperature / 100 + " C <br>";
+                if(this.data.humidity)
+                    res += "Hum: " + this.data.humidity / 100 + " % <br>";
+                if(this.data.pressure)
+                    res += "Pres: " + this.data.pressure / 10 + " Pa <br>";
+                console.log(res);
+                document.getElementById("data_" + this.sensor_id).innerHTML = res;
+            }
+
+            static SensorTypeToStr(sensorType)
+            {
+                console.log(sensorType);
+                switch (String(sensorType)) 
+                {
+                case "00010058":
+                    return "Simple Weather Sensor BMP280"
+                case "00010060":
+                    return "Simple Weather Sensor BME280"
+                case "00010061":
+                    return "Simple Weather Sensor BME680"
+                }
+                return "Unknown"
+            }
+        }
+
+        async function getSensors(sensors_ids)
+        {
+            let sensors_data = {"sensors":[]};
+
+            for (const element of sensors_ids) 
+            {
+                const ret =  await fetch("/api/get_sensor_info", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({sensor_id: element})
+                });
+                if(!ret.ok)
+                    throw new Error("Server error");
+                sensors_data.sensors.push(await ret.json());
+            }
+            return sensors_data;
+        }
+        
+        async function getSensorsIds()
+        {
+            const ret =  await fetch("/api/get_sensors_ids", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify()
+            });
+            if(!ret.ok)
+                throw new Error("Server error");
+            return await ret.json();
+        }
+
+        function getSensorsObj(data_json)
+        {
+            let sensors = []
+            for (const sensorData of data_json.sensors)
+            {
+                sensors.push(new Sensor(sensorData))
+            }
+            return sensors
+        }
+
+        function generateSensorsInfos(sensors)
+        {
+            let res = ""
+            for (const sensor of sensors)
+            {
+                res += sensor.generateInfo();
+            }
+            document.getElementById("sensors_ids").innerHTML = res;
+        }
+
+
+
+        function loadPage()
+        {
+            (async() => {
+                const ids_json = await getSensorsIds();
+                
+                document.getElementById("connected_sensors").innerHTML = ids_json.sensors_ids.length;
+                
+                const data_json = await getSensors(ids_json.sensors_ids);
+                
+                let sensors = getSensorsObj(data_json);
+                generateSensorsInfos(sensors);
+                for (const sensor of sensors)
+                {
+                    await sensor.updateData();
+                }
+
+                setInterval(async () => {
+                    for (const sensor of sensors)
+                    {
+                        await sensor.updateData();
+                    }
+                }, 5000);
+            })();
+        }
+    </script>
+</head>
+<body onload="loadPage()">
+    <p>
+        <h3>SENSORS</h3>
+        <div>
+            <p>Connected sensors: <span id="connected_sensors">0</span></p> 
+        </div>
+        <!-- <div style="margin: 10px;">
+            Template <br>
+
+            Temp: 24.5 C <br>
+            Hum: 45 % <br>
+
+            Type: TestSensor <br>
+            Type raw: 0x... <br>
+            Id: 0x.... <br>
+            Data: <br>
+            <span id="data_sensorid"></span>
+            Details <br>
+            Max data packets count: <br>
+            Max calibration packets count: <br>
+            Hardware version: <br>
+            Software version: <br>
+            Init time: <br>
+            Radio address: <br>
+        </div> -->
+        <div id="sensors_ids"></div>
+    </p>
+</body>
