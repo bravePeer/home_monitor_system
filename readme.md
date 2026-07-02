@@ -1,4 +1,9 @@
-# Indoor Outdoor Measurement
-This project idea is to geather whether information from outdoor sensors.
+# Home Monitor System
+This project idea is to gather environmental information around the home.
 
-In principle sensors sends data to receiver which is connected to PC (server) via USB cable. PC app in regular time step requests receiver for new data.
+In principle, sensors send data to a receiver, which is connected to a server.
+
+General flow
+```
+Sensor ---> Bridge ---> Server
+```
