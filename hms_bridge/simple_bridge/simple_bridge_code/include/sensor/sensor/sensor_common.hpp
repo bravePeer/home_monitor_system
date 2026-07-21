@@ -189,7 +189,7 @@ namespace sensor
             statusReg.isSensorSaved = 0;
         }
         
-        struct 
+        struct
         {
             uint32_t isSleeping : 1;
             /// @brief Set this flag if everything is done
@@ -334,7 +334,6 @@ namespace sensor
         SensorInfo* sensorInfo;
     };
 
-    // template<uint32_t N = 10>
     class Sensor
     {
     public:
@@ -367,14 +366,15 @@ namespace sensor
             return snprintf(buf, bufSize, "no_results");
         }
 
+        /// @brief Overrides actual data
         virtual int calculateData()
         { 
-            return 0;
+            return -1;
         }
 
-        virtual SensorReturnCode getResultsJson()
+        virtual int getResultsJSON(char* buf, size_t bufSize) const
         {
-            return SensorReturnCode::NotImplemented;
+            return snprintf(buf, bufSize, "{\"status\":\"no_data\"}");
         }
 
         SensorType getSensorType() const
@@ -382,6 +382,7 @@ namespace sensor
             return info.sensorType;
         }
 
+        
         SensorInfo info{};
         SensorCalibrationData calibrationData{};
         SensorStatus status;
@@ -400,162 +401,6 @@ namespace sensor
         RingBuffer<SensorSingleData, SensorDataCount> calculatedData;
 
         SemaphoreHandle_t  sensorMutex = nullptr;
-
-    };
-
-    class SensorSimpleWeatherSensorBME280 : public Sensor
-    {
-    public:
-        int setCalibrationData(sensorPacket::SensorPacketWithLen* packet) override
-        {
-            uint8_t calibPacketId = (static_cast<uint8_t>(packet->packet.General.header.type) & 0b111) - 1;
-            uint8_t updateStatus = 0;
-
-            if(calibPacketId == 0)
-            {
-                if(packet->size < 32)
-                    return 1;
-                //std::memcpy(sensorPtr->calibrationData.bmp280.calibRaw, packet.packet.CalibData.calibData, packet.size);
-                calibrationData.bme280.digT1 = bytesToUint16(&packet->packet.CalibData.calibData[0]);
-                calibrationData.bme280.digT2 = bytesToInt16(&packet->packet.CalibData.calibData[2]);
-                calibrationData.bme280.digT3 = bytesToInt16(&packet->packet.CalibData.calibData[4]);
-            
-                calibrationData.bme280.digP1 = bytesToUint16(&packet->packet.CalibData.calibData[6]);
-                calibrationData.bme280.digP2 = bytesToInt16(&packet->packet.CalibData.calibData[8]);
-                calibrationData.bme280.digP3 = bytesToInt16(&packet->packet.CalibData.calibData[10]);
-                calibrationData.bme280.digP4 = bytesToInt16(&packet->packet.CalibData.calibData[12]);
-                calibrationData.bme280.digP5 = bytesToInt16(&packet->packet.CalibData.calibData[14]);
-                calibrationData.bme280.digP6 = bytesToInt16(&packet->packet.CalibData.calibData[16]);
-                calibrationData.bme280.digP7 = bytesToInt16(&packet->packet.CalibData.calibData[18]);
-                calibrationData.bme280.digP8 = bytesToInt16(&packet->packet.CalibData.calibData[20]);
-                calibrationData.bme280.digP9 = bytesToInt16(&packet->packet.CalibData.calibData[22]);
-
-                calibrationData.bme280.digH1 = packet->packet.CalibData.calibData[25];
-
-                updateStatus = 1;
-            }
-            else if(calibPacketId == 1)
-            {
-                if(packet->size < 16)
-                    return 1;
-               calibrationData.bme280.digH2 = bytesToInt16(&packet->packet.CalibData.calibData[0]);
-               calibrationData.bme280.digH3 = packet->packet.CalibData.calibData[2];
-
-                calibrationData.bme280.digH4 = packet->packet.CalibData.calibData[3];
-                calibrationData.bme280.digH4 <<= 4;
-                calibrationData.bme280.digH4 |= (packet->packet.CalibData.calibData[4] & 0x0f);
-                
-                calibrationData.bme280.digH5 = packet->packet.CalibData.calibData[5];
-                calibrationData.bme280.digH5 <<= 4;
-                calibrationData.bme280.digH5 |= ((packet->packet.CalibData.calibData[4] & 0xf0) >> 4);
-
-                // sensorPtr->calibrationData.bme280.digH4 = (packet.packet.CalibData.calibData[4] & 0x0f);
-                // sensorPtr->calibrationData.bme280.digH4 <<= 8;
-                // sensorPtr->calibrationData.bme280.digH4 |= packet.packet.CalibData.calibData[3];
-                // sensorPtr->calibrationData.bme280.digH5 = (packet.packet.CalibData.calibData[4] & 0xf0);
-                // sensorPtr->calibrationData.bme280.digH5 <<= 4;
-                // sensorPtr->calibrationData.bme280.digH5 |= packet.packet.CalibData.calibData[5];
-
-                calibrationData.bme280.digH6 = packet->packet.CalibData.calibData[6];
-                
-                calibrationData.resistorR1Value = bytesToInt16(&packet->packet.CalibData.calibData[7]);
-                calibrationData.resistorR2Value = bytesToInt16(&packet->packet.CalibData.calibData[9]);
-
-                updateStatus = 1;
-            }
-            else
-            {
-                // log("Sensor", LogLevel::Warning, "CalibPacketId does not match!");
-                return 2;
-            }
-
-            return 0;
-        }
-
-        int getCalibrationDataStr(char* buf, size_t bufSize) const override
-        {
-            return snprintf(buf, bufSize, 
-                "bme280.digT1=%u,bme280.digT2=%d,bme280.digT3=%d,bme280.digP1=%u,bme280.digP2=%d,bme280.digP3=%d,bme280.digP4=%d,bme280.digP5=%d,bme280.digP6=%d,bme280.digH1=%d,resistorR1Value=%u,resistorR2Value=%u",
-                calibrationData.bme280.digT1,
-                calibrationData.bme280.digT2,
-                calibrationData.bme280.digT3,
-                calibrationData.bme280.digP1,
-                calibrationData.bme280.digP2,
-                calibrationData.bme280.digP3,
-                calibrationData.bme280.digP4,
-                calibrationData.bme280.digP5,
-                calibrationData.bme280.digP6,
-                calibrationData.bme280.digH1,
-                calibrationData.resistorR1Value,
-                calibrationData.resistorR2Value
-            );
-        }
-
-        int getResultsColsStr(char* buf, size_t bufSize) const override
-        {
-            return snprintf(buf, bufSize, "temperature,pressure,humidity,voltage");
-        }
-
-        int getResultsStr(char* buf, size_t bufSize) const override
-        {
-            return snprintf(buf, bufSize, 
-                "%lu,%lu,%lu,%u",
-                calculatedData.temperature,
-                calculatedData.pressure,
-                calculatedData.humidity,
-                calculatedData.voltage
-            );
-        }
-
-        int calculateData() override
-        {
-            /// @todo check if calibration data, sensor info and raw data is known
-
-            return 0;
-        }
-
-        struct CalculatedData 
-        {
-            uint32_t temperature = -1;
-            uint32_t pressure = -1;
-            uint32_t humidity = -1;
-
-            uint16_t voltage = -1;
-        };
-
-
-    private:
-        
-        struct
-        {
-            struct 
-            {
-                uint16_t digT1;
-                int16_t digT2;
-                int16_t digT3;
-                
-                uint16_t digP1;
-                int16_t digP2;
-                int16_t digP3;
-                int16_t digP4;
-                int16_t digP5;
-                int16_t digP6;
-                int16_t digP7;
-                int16_t digP8;
-                int16_t digP9;
-                
-                uint8_t digH1;
-                int16_t digH2;
-                uint8_t digH3;
-                int16_t digH4;
-                int16_t digH5;
-                int8_t digH6;
-            } bme280;
-            uint16_t resistorR1Value = -1;
-            uint16_t resistorR2Value = -1;
-        } calibrationData;
-
-        CalculatedData calculatedData;
     };
 
 }
