@@ -235,19 +235,4 @@ namespace sensor
         return ErrorCode::Ok;
     }
 
-    inline ErrorCode doCalculation(Sensor* sensor)
-    {
-        switch (sensor->info.sensorType)
-        {
-            case SensorType::SimpleWeatherSensorBMP280:
-                return calculateBMP280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
-            case SensorType::SimpleWeatherSensorBME280:
-                return calculateBME280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
-            case SensorType::SimpleWeatherSensorBME680:
-                /// @todo
-                return ErrorCode::Fail;
-            default:
-                return ErrorCode::Fail;
-        }
-    }
 }

@@ -9,6 +9,7 @@
 #include "receiver/logger/logger.hpp"
 #include "sensor/sensor/sensor_config.hpp"
 #include "sensor/sensor/sensor_calculation.hpp"
+#include "sensor/sensor/sensor_utils.hpp"
 
 namespace sensor
 {
@@ -570,21 +571,31 @@ namespace sensor
             
             ESP_LOGI("SENSOR", "TTTT");
             
-            // TODO do proper calculation for proper sensor
-            switch (sensor->info.sensorType)
+            int result = sensor->calculateData();
+            if(result == 0)
             {
-            case SensorType::SimpleWeatherSensorBMP280:
-                log("Sensor", LogLevel::Info, "Calculating SimpleWeatherSensorBMP280");
-                calculateBMP280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
-                break;
-            case SensorType::SimpleWeatherSensorBME280:
-                log("Sensor", LogLevel::Info, "Calculating SimpleWeatherSensorBME280");
-                calculateBME280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
-                break;
-            default:
-                log("Sensor", LogLevel::Error, "Error unknow sensor type");
-                break;
+                log("Sensor", LogLevel::Info, "%s: Calculating done", getSensorTypeName(sensor->getSensorType()));
             }
+            else
+            {
+                log("Sensor", LogLevel::Info, "%s: Calculating error", getSensorTypeName(sensor->getSensorType()));
+            }
+
+            // // TODO do proper calculation for proper sensor
+            // switch (sensor->info.sensorType)
+            // {
+            // case SensorType::SimpleWeatherSensorBMP280:
+            //     log("Sensor", LogLevel::Info, "Calculating SimpleWeatherSensorBMP280");
+            //     calculateBMP280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
+            //     break;
+            // case SensorType::SimpleWeatherSensorBME280:
+            //     log("Sensor", LogLevel::Info, "Calculating SimpleWeatherSensorBME280");
+            //     calculateBME280(sensor->calibrationData, sensor->lastSensorPackets, sensor->calculatedData);
+            //     break;
+            // default:
+            //     log("Sensor", LogLevel::Error, "Error unknow sensor type");
+            //     break;
+            // }
 
             sensor->status.statusReg.isDataCalculated = 1;
         }
