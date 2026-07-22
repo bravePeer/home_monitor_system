@@ -1,0 +1,14 @@
+services:
+  app:
+    container_name: hms-server
+    build: .
+    restart: always
+    ports:
+      - "4000:8080"
+    networks:
+      home_monitor_system_network:
+        ipv4_address: 172.21.0.10
+
+networks:
+  home_monitor_system_network:
+    external: true
