@@ -1,0 +1,60 @@
+{
+    "sensors": [
+        {
+            "name": "Dev Sensor Custom Name",
+            "desc": "Dev Sensor Desc",
+            "type": {
+                "uid": 0,
+                "name":  "Dev Sensor"
+            },
+            "measurements": [
+                "temperature"
+            ],
+            "processor": "dev_additional_calculations"
+        },
+        {
+            "name": "Simple Weather Sensor I",
+            "desc": "Simple Weather Sensor with BMP280",
+            "type": {
+                "uid": 1,
+                "name":  "Simple Weather Sensor I"
+            },
+            "measurements": [
+                "temperature", "pressure", "humidity"
+            ],
+            "processor": null
+        },
+        {
+            "name": "Simple Weather Sensor II",
+            "desc": "Simple Weather Sensor with BME280",
+            "type": {
+                "uid": 2,
+                "name":  "Simple Weather Sensor II"
+            },
+            "measurements": [
+                "temperature", "pressure", "humidity"
+            ],
+            "processor": "simple_weather_sensor_bme280"
+        }
+    ],
+    "measurements": [
+        {
+            "uid": 1,
+            "name": "temperature",
+            "short_name": "temp",
+            "unit": "C"
+        },
+        {
+            "uid": 2,
+            "name": "pressure",
+            "short_name": "press",
+            "unit": "Pa"
+        },
+        {
+            "uid": 3,
+            "name": "humidity",
+            "short_name": "hum",
+            "unit": "%"
+        }
+    ]
+}
